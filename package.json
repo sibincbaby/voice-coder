@@ -1,0 +1,136 @@
+{
+  "name": "voice-coder",
+  "displayName": "Voice Coder",
+  "description": "Voice typing for VS Code powered by Gemini. Speak Malayalam (or any language), get clean English text injected into the focused input — editor, Copilot Chat, Claude Code terminal, anywhere.",
+  "version": "0.1.0",
+  "publisher": "sibin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sibincbaby/voice-coder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sibincbaby/voice-coder/issues"
+  },
+  "homepage": "https://github.com/sibincbaby/voice-coder#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "voice",
+    "dictation",
+    "speech-to-text",
+    "gemini",
+    "malayalam",
+    "transcription",
+    "copilot"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "voiceCoder.toggleRecording",
+        "title": "Voice Coder: Toggle Recording"
+      },
+      {
+        "command": "voiceCoder.cancelRecording",
+        "title": "Voice Coder: Cancel Recording / Transcription"
+      },
+      {
+        "command": "voiceCoder.setApiKey",
+        "title": "Voice Coder: Set Gemini API Key"
+      },
+      {
+        "command": "voiceCoder.clearApiKey",
+        "title": "Voice Coder: Clear Gemini API Key"
+      },
+      {
+        "command": "voiceCoder.openSettings",
+        "title": "Voice Coder: Open Settings"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "voiceCoder.toggleRecording",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v"
+      },
+      {
+        "command": "voiceCoder.cancelRecording",
+        "key": "ctrl+alt+x",
+        "mac": "cmd+alt+x"
+      },
+      {
+        "command": "voiceCoder.cancelRecording",
+        "key": "escape",
+        "when": "voiceCoder.recording"
+      }
+    ],
+    "configuration": {
+      "title": "Voice Coder",
+      "properties": {
+        "voiceCoder.model": {
+          "type": "string",
+          "default": "gemini-3.1-flash-lite",
+          "description": "Gemini model used for transcription. Examples: gemini-3.1-flash-lite, gemini-3-flash, gemini-2.5-flash. Lite is fastest and cheapest."
+        },
+        "voiceCoder.systemInstruction": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "You are a speech-to-English translator for a developer. The user speaks Malayalam, often mixed with English technical/code terms.\n\nABSOLUTE OUTPUT RULES (these override any other interpretation of the audio):\n1. ALWAYS output in ENGLISH. NEVER output Malayalam script (no അആഇ...). If the user spoke Malayalam, TRANSLATE it to English.\n2. Preserve English words, identifiers, file paths, and code/technical terms verbatim (e.g., 'useState', 'package.json', 'localhost').\n3. Drop filler and stutters; do not paraphrase or invent detail.\n4. Render dictated punctuation as real symbols: 'open paren' -> (, 'arrow function' -> () =>, 'new line' -> an actual newline, 'comma' -> ,, 'period' -> ., 'question mark' -> ?.\n5. Output ONLY the final text. No preamble, no quotes, no explanation, no language tags, no markdown fences.\n\nThis is a translation task, not a transcription task. Even if the audio is 100% Malayalam, the output must be 100% English.",
+          "description": "System instruction sent to Gemini. Customize this to control output language, style, code conventions, etc."
+        },
+        "voiceCoder.audioTool": {
+          "type": "string",
+          "enum": ["auto", "arecord", "sox", "ffmpeg"],
+          "default": "auto",
+          "description": "Audio recorder backend. 'auto' picks the first available of arecord, sox, ffmpeg."
+        },
+        "voiceCoder.sampleRate": {
+          "type": "number",
+          "default": 16000,
+          "description": "Recording sample rate in Hz. 16000 is recommended for speech."
+        },
+        "voiceCoder.injectionMethod": {
+          "type": "string",
+          "enum": ["clipboard-paste", "type-command"],
+          "default": "clipboard-paste",
+          "description": "How transcribed text is inserted. 'clipboard-paste' works in webviews (Copilot Chat) and terminals; 'type-command' only works in the editor."
+        },
+        "voiceCoder.maxRecordingSeconds": {
+          "type": "number",
+          "default": 120,
+          "description": "Auto-stop recording after this many seconds."
+        },
+        "voiceCoder.restoreClipboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Restore the previous clipboard contents after pasting the transcript."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --minify",
+    "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --sourcemap --watch",
+    "type-check": "tsc --noEmit",
+    "package": "pnpm run compile && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}
