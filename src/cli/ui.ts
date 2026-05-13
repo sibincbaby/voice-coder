@@ -192,11 +192,50 @@ const PAGE = `<!doctype html>
   .tile.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(122,167,255,0.18); }
   .tile.active { background: linear-gradient(180deg, rgba(122,167,255,0.06) 0%, transparent 60%); }
   .tile .num {
-    position: absolute; top: var(--s-3); right: var(--s-3);
+    position: absolute; top: var(--s-3); left: var(--s-3);
     width: 22px; height: 22px; border-radius: 6px;
     background: var(--surface-3); color: var(--text-mute); font-size: 11px;
     font-family: ui-monospace, monospace; display: grid; place-items: center;
   }
+  /* Kebab menu (⋮) in top-right of each tile */
+  .tile .menu-btn {
+    position: absolute; top: var(--s-3); right: var(--s-3);
+    width: 26px; height: 26px; border-radius: 6px; padding: 0;
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--text-mute); font-size: 18px; line-height: 1;
+    display: grid; place-items: center;
+    opacity: 0.55; transition: opacity 100ms ease, color 100ms ease, background 100ms ease;
+  }
+  .tile:hover .menu-btn, .tile.selected .menu-btn { opacity: 1; }
+  .tile .menu-btn:hover { background: var(--surface-2); color: var(--text); opacity: 1; }
+  .tile.menu-open .menu-btn { background: var(--surface-2); color: var(--text); opacity: 1; }
+
+  .tile .menu-pop {
+    position: absolute; top: 44px; right: var(--s-3); z-index: 10;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 4px; min-width: 140px;
+    box-shadow: var(--shadow-md);
+    display: none;
+  }
+  .tile.menu-open .menu-pop { display: block; }
+  .tile .menu-pop button {
+    display: flex; align-items: center; gap: var(--s-2);
+    width: 100%; padding: 7px 10px; border-radius: 4px;
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--text); font: inherit; font-size: 13px; text-align: left;
+    transition: background 80ms, color 80ms;
+  }
+  .tile .menu-pop button:hover { background: var(--surface-3); }
+  .tile .menu-pop button.danger { color: var(--bad); }
+  .tile .menu-pop button.danger:hover { background: rgba(255,122,144,0.1); }
+  .tile .menu-pop .sep { height: 1px; background: var(--line); margin: 4px 2px; }
+  .tile .menu-pop .menu-shortcut {
+    margin-left: auto; color: var(--text-mute); font-size: 11px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Push content past the number badge in the top-left */
+  .tile .name { padding-left: 32px; padding-right: 32px; }
   .tile .name { font-size: 16px; font-weight: 600; margin-top: var(--s-2); }
   .tile .model { font-size: 11px; color: var(--text-mute); font-family: ui-monospace, monospace; }
   .tile .preview {
@@ -664,6 +703,13 @@ const PAGE = `<!doctype html>
       return \`<div class="tile \${isActive ? "active" : ""} \${isSelected ? "selected" : ""}"
                 style="--tile-color: \${p.color}" data-id="\${p.id}" data-i="\${i}" tabindex="0">
         <span class="num">\${i + 1}</span>
+        <button class="menu-btn" data-menu="\${p.id}" title="More options" aria-label="More options">⋮</button>
+        <div class="menu-pop" data-menu-pop="\${p.id}">
+          <button data-edit="\${p.id}">Edit <span class="menu-shortcut">E</span></button>
+          <button data-activate="\${p.id}" \${isActive ? "disabled" : ""}>Set as active <span class="menu-shortcut">↵</span></button>
+          <div class="sep"></div>
+          <button class="danger" data-del="\${p.id}">Delete <span class="menu-shortcut">D</span></button>
+        </div>
         <div class="name">\${esc(p.name)}</div>
         <div class="model">\${esc(p.model)}</div>
         <div class="preview">\${esc(preview)}</div>
@@ -686,8 +732,52 @@ const PAGE = `<!doctype html>
       const id = el.dataset.id;
       el.addEventListener("click", () => activateProfile(id));
     });
+    grid.querySelectorAll("[data-menu]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tile = btn.closest(".tile");
+        const wasOpen = tile.classList.contains("menu-open");
+        closeAllMenus();
+        if (!wasOpen) tile.classList.add("menu-open");
+      });
+    });
+    grid.querySelectorAll(".menu-pop").forEach((pop) => {
+      // Clicks INSIDE the menu shouldn't bubble to the tile (which would activate it)
+      pop.addEventListener("click", (e) => e.stopPropagation());
+    });
+    grid.querySelectorAll("[data-edit]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAllMenus();
+        const id = btn.dataset.edit;
+        editingId = id;
+        selectedId = id;
+        switchTab("config");
+      });
+    });
+    grid.querySelectorAll("[data-activate]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAllMenus();
+        activateProfile(btn.dataset.activate);
+      });
+    });
+    grid.querySelectorAll("[data-del]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAllMenus();
+        deleteProfile(btn.dataset.del);
+      });
+    });
     $("#tile-add").addEventListener("click", openNewModal);
   }
+
+  function closeAllMenus() {
+    document.querySelectorAll(".tile.menu-open").forEach((t) => t.classList.remove("menu-open"));
+  }
+  // Close any open kebab menu on outside click / Escape
+  document.addEventListener("click", closeAllMenus);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllMenus(); });
 
   async function activateProfile(id) {
     try {
