@@ -303,13 +303,22 @@ const PAGE = `<!doctype html>
     padding: var(--s-5); width: 420px; max-width: 92vw; box-shadow: var(--shadow-md);
   }
   .modal h3 { margin: 0 0 var(--s-3); font-size: 15px; font-weight: 600; }
-  .modal .swatches { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
-  .modal .swatch {
-    width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
-    border: 2px solid transparent; transition: transform 80ms ease;
+
+  /* Color picker — works in modals AND the Config tab. <span> defaults to
+     display: inline which ignores width/height, so explicit display matters. */
+  .swatches { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
+  .swatch {
+    display: inline-block;
+    width: 26px; height: 26px; border-radius: 7px; cursor: pointer;
+    border: 2px solid transparent; transition: transform 80ms ease, border-color 80ms ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
-  .modal .swatch:hover { transform: scale(1.1); }
-  .modal .swatch.selected { border-color: #fff; }
+  .swatch:hover { transform: scale(1.08); }
+  .swatch.selected { border-color: #fff; transform: scale(1.05); }
+  /* Smaller variant for the sidebar footer */
+  .sidebar .foot .swatch {
+    width: 8px; height: 8px; border-radius: 50%; box-shadow: none; border-width: 0;
+  }
 </style>
 </head>
 <body>
@@ -728,20 +737,37 @@ const PAGE = `<!doctype html>
   function closeNewModal() { $("#modal-new").hidden = true; }
   $("#new-cancel").addEventListener("click", closeNewModal);
   $("#modal-new").addEventListener("click", (e) => { if (e.target.id === "modal-new") closeNewModal(); });
+  let creatingProfile = false;
   $("#new-create").addEventListener("click", async () => {
+    if (creatingProfile) return;     // hard-lock against rapid double-click
     const name = $("#new-name").value.trim();
     if (!name) { toast("Pick a name.", "bad"); return; }
     const selectedSwatch = $("#new-swatches .swatch.selected");
     const color = selectedSwatch ? selectedSwatch.dataset.color : PALETTE[0];
+
+    creatingProfile = true;
+    const btn = $("#new-create");
+    const origLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Creating…";
+
     try {
       const p = await api("POST", "/api/profiles", { name, color });
-      closeNewModal();
       toast(\`Created: \${p.name}\`, "ok");
       selectedId = p.id;
       editingId = p.id;
       await loadProfiles();
       switchTab("config");
-    } catch (err) { toast(err.message, "bad"); }
+    } catch (err) {
+      toast(err.message, "bad");
+    } finally {
+      // Always close the modal so the user isn't stuck, even if something
+      // downstream threw after the profile was actually saved on disk.
+      closeNewModal();
+      creatingProfile = false;
+      btn.disabled = false;
+      btn.textContent = origLabel;
+    }
   });
 
   // ---------- config form (editing a profile) ----------
