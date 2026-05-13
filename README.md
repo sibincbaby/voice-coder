@@ -157,7 +157,19 @@ voice-coder status              # idle / recording with elapsed time
 voice-coder set-key             # save Gemini API key (stdin, chmod 600)
 voice-coder clear-key
 voice-coder config              # print effective config + paths
+voice-coder ui [--port 7777]    # open the web dashboard (config, history, logs)
 ```
+
+### Web dashboard
+
+Run `voice-coder ui` to open a local web UI at `http://localhost:7777` for editing settings without touching JSON, managing your API key, browsing past transcriptions, and tailing the log file. The server binds to **loopback only** — no remote access — and shuts down on Ctrl+C.
+
+| Tab | What it does |
+|---|---|
+| **Config** | Model picker, system instruction (the prompt that shapes Gemini's output), sample rate, max recording length, auto-paste toggle, notification toggle. Saved on click; the next `voice-coder toggle` picks them up. |
+| **API Key** | Masked display of the stored key. Set a new one, clear it, or "Test connection" — sends a tiny prompt to Gemini and reports latency / error. |
+| **History** | All past transcriptions (up to 500 most recent) with timestamp, model, audio size, API latency, and a one-click copy button. |
+| **Logs** | Tail of `~/.config/voice-coder/voice-coder.log`. Auto-refreshes every 2s. Rotates at 1MB. |
 
 ### CLI configuration
 

@@ -67,6 +67,23 @@ export function loadConfig(): CliConfig {
   }
 }
 
+export function saveConfig(partial: Partial<CliConfig>): void {
+  ensureConfigDir();
+  const current = loadConfig();
+  // Whitelist keys so callers can't write arbitrary fields
+  const allowed: (keyof CliConfig)[] = [
+    "model", "systemInstruction", "audioTool", "sampleRate",
+    "maxRecordingSeconds", "autoPaste", "notify",
+  ];
+  const next: Record<string, unknown> = { ...current };
+  for (const k of allowed) {
+    if (partial[k] !== undefined) {
+      next[k] = partial[k];
+    }
+  }
+  fs.writeFileSync(configFile(), JSON.stringify(next, null, 2));
+}
+
 export function loadApiKey(): string | null {
   // Prefer env var (handy for scripting/CI)
   const env = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;

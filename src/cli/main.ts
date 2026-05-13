@@ -12,6 +12,7 @@ import {
   loadConfig, loadApiKey, saveApiKey, clearApiKey, configFile, apiKeyFile, configDir,
   type CliConfig,
 } from "./config";
+import { appendHistory, log } from "./store";
 
 const LOCKFILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.lock`);
 
@@ -36,6 +37,8 @@ async function main(argv: string[]): Promise<number> {
       case "set-key": return await cmdSetKey();
       case "clear-key": return cmdClearKey();
       case "config": return cmdConfig();
+      case "ui":
+      case "dashboard": return await cmdUi(rest);
       case "help":
       case "-h":
       case "--help": return cmdHelp();
@@ -80,6 +83,7 @@ async function cmdRecord(): Promise<number> {
   fs.writeFileSync(LOCKFILE, JSON.stringify(state));
 
   notify("Voice Coder", "Recording — press the shortcut again to stop", "low");
+  log("info", `Started recording (pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
   console.log(`Recording (pid=${proc.pid}, wav=${wavPath})`);
 
   // Schedule a self-stop if no one calls stop within maxRecordingSeconds.
@@ -114,6 +118,8 @@ async function cmdStop(rest: string[]): Promise<number> {
   }
 
   notify("Voice Coder", "Transcribing…", "low");
+  const audioBytes = fs.statSync(state.wavPath).size;
+  const t0 = Date.now();
   let text: string;
   try {
     text = await transcribe({
@@ -122,9 +128,30 @@ async function cmdStop(rest: string[]): Promise<number> {
       systemInstruction: cfg.systemInstruction,
       wavPath: state.wavPath,
     });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log("error", `Transcription failed (model=${cfg.model}): ${msg}`);
+    appendHistory({
+      ts: new Date().toISOString(),
+      model: cfg.model,
+      text: "",
+      durationMs: Date.now() - t0,
+      audioBytes,
+      error: msg,
+    });
+    throw err;
   } finally {
     AudioRecorder.cleanup(state.wavPath);
   }
+  const durationMs = Date.now() - t0;
+  log("info", `Transcribed (model=${cfg.model}, ${audioBytes}B audio, ${durationMs}ms, ${text.length} chars)`);
+  appendHistory({
+    ts: new Date().toISOString(),
+    model: cfg.model,
+    text,
+    durationMs,
+    audioBytes,
+  });
 
   writeClipboard(text);
 
@@ -154,6 +181,7 @@ async function cmdCancel(): Promise<number> {
     return 1;
   }
   cleanupAfterStop(state.pid, state.wavPath, true);
+  log("info", `Recording cancelled by user`);
   notify("Voice Coder", "Recording cancelled", "low");
   console.log("Cancelled.");
   return 0;
@@ -189,6 +217,45 @@ function cmdClearKey(): number {
   return 0;
 }
 
+async function cmdUi(rest: string[]): Promise<number> {
+  const { startServer } = await import("./server");
+  const portArg = parseArg(rest, "--port");
+  const noOpen = rest.includes("--no-open");
+  const port = portArg ? parseInt(portArg, 10) : 7777;
+
+  const handle = await startServer({ port }).catch((err) => {
+    if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      throw new Error(`Port ${port} is already in use. Try: voice-coder ui --port 7778`);
+    }
+    throw err;
+  });
+
+  console.log(`Voice Coder UI running at ${handle.url}`);
+  console.log(`Press Ctrl+C to stop.`);
+  notify("Voice Coder", `UI: ${handle.url}`, "low");
+  if (!noOpen) openBrowser(handle.url);
+
+  // Keep alive until SIGINT
+  return new Promise<number>((resolve) => {
+    const shutdown = () => {
+      console.log("\nShutting down…");
+      handle.close().finally(() => resolve(0));
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  });
+}
+
+function parseArg(rest: string[], name: string): string | null {
+  const idx = rest.indexOf(name);
+  if (idx === -1 || idx === rest.length - 1) return null;
+  return rest[idx + 1];
+}
+
+function openBrowser(url: string): void {
+  spawn("xdg-open", [url], { stdio: "ignore", detached: true }).unref();
+}
+
 function cmdConfig(): number {
   // Print resolved paths and current effective config
   const cfg = loadConfig();
@@ -215,6 +282,7 @@ Commands:
   set-key             Read a Gemini API key from stdin and store it (chmod 600)
   clear-key           Delete the stored API key
   config              Print effective config and config file paths
+  ui [--port N]       Open the web dashboard (default http://localhost:7777)
   help                This text
 
 Typical setup:
