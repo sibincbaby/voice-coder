@@ -29,6 +29,9 @@
     "copilot"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "voice-coder": "./out/cli.js"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -110,18 +113,21 @@
         },
         "voiceCoder.restoreClipboard": {
           "type": "boolean",
-          "default": true,
-          "description": "Restore the previous clipboard contents after pasting the transcript."
+          "default": false,
+          "description": "If true, restore your previous clipboard contents after pasting the transcript. Default is false so the transcript stays in your clipboard — handy when the auto-paste misses (e.g. no input was focused) and you want to paste it manually with Ctrl+V."
         }
       }
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile",
-    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --minify",
+    "vscode:prepublish": "pnpm run compile:extension",
+    "compile": "pnpm run compile:extension && pnpm run compile:cli",
+    "compile:extension": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --minify",
+    "compile:cli": "esbuild src/cli/main.ts --bundle --outfile=out/cli.js --platform=node --format=cjs --target=node20 --minify --banner:js='#!/usr/bin/env node' && chmod +x out/cli.js",
     "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --sourcemap --watch",
     "type-check": "tsc --noEmit",
-    "package": "pnpm run compile && vsce package --no-dependencies"
+    "package": "pnpm run compile:extension && vsce package --no-dependencies",
+    "install:cli": "pnpm run compile:cli && bash scripts/install-cli.sh"
   },
   "dependencies": {
     "@google/genai": "^1.0.0"

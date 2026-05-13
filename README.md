@@ -1,6 +1,9 @@
 # Voice Coder
 
-**Type by speaking.** A VS Code extension that records your voice, sends it to Google's Gemini for transcription, and pastes the result into whatever input has focus — the editor, **GitHub Copilot Chat**, the **Claude Code** terminal, the search box, the command palette. Anywhere.
+**Type by speaking.** Records your voice, sends it to Google's Gemini for transcription, and pastes the result into whatever input has focus. Comes in two flavors that share the same engine:
+
+- **VS Code extension** — focused on Copilot Chat, the Claude Code terminal, the editor, anywhere inside VS Code.
+- **`voice-coder` CLI** — a standalone Linux command-line tool you bind to a global keyboard shortcut. Works in **any application**: Chrome, Slack, the GNOME Terminal, your file manager's rename box, anywhere your cursor is.
 
 Built for people who would rather talk than type, and especially useful for:
 
@@ -13,7 +16,7 @@ The trick is that **Gemini is an LLM, not a plain speech-to-text engine**. You c
 
 ---
 
-## Quick start
+## Quick start — VS Code extension
 
 ### 1. Prerequisites
 
@@ -68,9 +71,127 @@ You can also click the microphone icon in the status bar to toggle recording.
 
 ---
 
-## Configuration
+## Quick start — Linux CLI (system-wide)
 
-All settings live under `voiceCoder.*` in your VS Code `settings.json`. Change them with `Ctrl+,` (search `voiceCoder`) or by editing `settings.json` directly. **Changes take effect immediately — no reload needed.**
+The CLI is the same engine without VS Code wrapped around it. You bind a global keyboard shortcut once; after that **any focused input on your machine** — Chrome address bar, Slack message box, terminal, a Java app, anything — becomes voice-typeable.
+
+### 1. Prerequisites
+
+Same as the VS Code flavor, plus a clipboard writer:
+
+| Tool | Purpose | Install on Ubuntu/Debian |
+|---|---|---|
+| `arecord` | Audio capture | `sudo apt install alsa-utils` |
+| `xclip` | Writes the transcript to the clipboard | `sudo apt install xclip` |
+| `xdotool` | Fires Ctrl+V so the transcript auto-pastes | `sudo apt install xdotool` |
+| `notify-send` | Desktop notifications | `sudo apt install libnotify-bin` |
+| `node` (≥ 20) | Runs the CLI bundle | already installed if you have pnpm |
+
+For Wayland sessions, install `wl-clipboard` and either `ydotool` or `wtype` instead of `xclip`/`xdotool`.
+
+### 2. Install
+
+From this repo:
+
+```bash
+cd voice-coder
+pnpm install
+pnpm run install:cli
+```
+
+That builds `out/cli.js` and symlinks it into `~/.local/bin/voice-coder`. If `~/.local/bin` isn't on your PATH, the install script tells you what to add to `~/.bashrc`.
+
+To uninstall: `rm ~/.local/bin/voice-coder`.
+
+### 3. Set your Gemini API key
+
+```bash
+voice-coder set-key
+# (paste your key; it's not echoed)
+```
+
+The key is saved to `~/.config/voice-coder/api-key` with mode `0600`. You can also point at it via env var: `export GEMINI_API_KEY=...`.
+
+### 4. Bind a global keyboard shortcut
+
+The CLI is **stateful by design**: the same command both starts and stops recording. So you only need to bind one key to one command.
+
+**GNOME** (Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → `+`):
+
+| Field | Value |
+|---|---|
+| Name | `Voice Coder Toggle` |
+| Command | `voice-coder toggle` (or absolute path: `/home/<you>/.local/bin/voice-coder toggle`) |
+| Shortcut | Whatever you like — `Ctrl+Alt+V`, `Super+V`, `F12`, etc. |
+
+Bind a second shortcut to `voice-coder cancel` for discarding a recording, or `voice-coder stop --copy-only` if you want clipboard-only mode (no auto-paste).
+
+**KDE Plasma**: System Settings → Shortcuts → Custom Shortcuts → Edit → New → Global Shortcut → Command/URL.
+
+**Hyprland / Sway / i3**: bind in your config:
+```
+bind = SUPER, V, exec, voice-coder toggle
+```
+
+**As a fallback**, you can always run `voice-coder toggle` from a terminal.
+
+### 5. Use it
+
+1. Focus any input field anywhere on your machine.
+2. Press your shortcut. A "Recording…" notification appears.
+3. Speak.
+4. Press the shortcut again. A "Transcribing…" notification appears, then your transcript:
+   - is **copied to the clipboard** (always), and
+   - is **auto-pasted** at your cursor (if `autoPaste` is enabled — default).
+
+If auto-paste lands in the wrong place or VS Code stole focus, just `Ctrl+V` to paste from the clipboard.
+
+### CLI commands
+
+```bash
+voice-coder toggle              # start, or stop and transcribe (the one to bind)
+voice-coder stop                # explicit stop
+voice-coder stop --copy-only    # stop, copy to clipboard, but don't auto-paste
+voice-coder cancel              # discard active recording without transcribing
+voice-coder status              # idle / recording with elapsed time
+voice-coder set-key             # save Gemini API key (stdin, chmod 600)
+voice-coder clear-key
+voice-coder config              # print effective config + paths
+```
+
+### CLI configuration
+
+Edit `~/.config/voice-coder/config.json`. All keys are optional; missing keys fall back to the defaults.
+
+```json
+{
+  "model": "gemini-3.1-flash-lite",
+  "systemInstruction": "…your custom prompt…",
+  "audioTool": "auto",
+  "sampleRate": 16000,
+  "maxRecordingSeconds": 120,
+  "autoPaste": true,
+  "notify": true
+}
+```
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `model` | `gemini-3.1-flash-lite` | Any Gemini model that accepts audio |
+| `systemInstruction` | translation prompt | Edit freely — see the [VS Code section](#customizing-the-system-instruction) for examples |
+| `audioTool` | `auto` | `auto` / `arecord` / `sox` / `ffmpeg` |
+| `sampleRate` | `16000` | Hz |
+| `maxRecordingSeconds` | `120` | Hard auto-stop |
+| `autoPaste` | `true` | If false, transcript only goes to the clipboard |
+| `notify` | `true` | Send desktop notifications via `notify-send` |
+
+Changes take effect on the next `voice-coder` invocation — no service to restart.
+
+---
+
+## VS Code configuration
+
+All extension settings live under `voiceCoder.*` in your VS Code `settings.json`. Change them with `Ctrl+,` (search `voiceCoder`) or by editing `settings.json` directly. **Changes take effect immediately — no reload needed.**
 
 | Setting | Default | Purpose |
 |---|---|---|
@@ -80,7 +201,7 @@ All settings live under `voiceCoder.*` in your VS Code `settings.json`. Change t
 | `voiceCoder.sampleRate` | `16000` | Hz |
 | `voiceCoder.injectionMethod` | `clipboard-paste` | `clipboard-paste` (universal) \| `type-command` (editor only) |
 | `voiceCoder.maxRecordingSeconds` | `120` | Hard auto-stop after this many seconds |
-| `voiceCoder.restoreClipboard` | `true` | Put your previous clipboard back after pasting |
+| `voiceCoder.restoreClipboard` | `false` | If true, restore your previous clipboard after pasting. Default false keeps the transcript in your clipboard so you can paste it again manually. |
 
 ### Customizing the system instruction
 
@@ -170,35 +291,49 @@ This can happen if both `xdotool` and `editor.action.clipboardPasteAction` fire.
 
 ## Build from source
 
-For contributors or anyone who wants to modify the extension:
+For contributors or anyone who wants to modify the extension or CLI:
 
 ```bash
-git clone <your-fork-url>
+git clone https://github.com/sibincbaby/voice-coder.git
 cd voice-coder
 pnpm install
-pnpm run compile          # bundles src/ → out/extension.js with esbuild
-pnpm run package          # produces voice-coder-X.Y.Z.vsix
+
+pnpm run compile               # builds BOTH out/extension.js and out/cli.js
+pnpm run compile:extension     # only the VS Code bundle
+pnpm run compile:cli           # only the CLI bundle
+
+pnpm run package               # produces voice-coder-X.Y.Z.vsix
+pnpm run install:cli           # builds CLI and symlinks to ~/.local/bin/voice-coder
 ```
 
-To iterate without packaging on every change:
+To iterate on the VS Code extension without re-packaging on every change:
 
 ```bash
-pnpm run watch &                                # rebuilds on save
+pnpm run watch &                                # rebuilds the extension on save
 code --extensionDevelopmentPath=$(pwd)          # launches a dev host
 ```
 
 In the dev host, edit a source file → save → reload window (`Ctrl+R`).
 
+To iterate on the CLI, just re-run `pnpm run compile:cli` — the symlink in `~/.local/bin` points at the same `out/cli.js` so the next invocation picks up your changes.
+
 ### Source layout
 
 ```
 src/
-├── extension.ts     Activation, command registration, state machine
-├── recorder.ts      Detect + spawn arecord / sox / ffmpeg
-├── transcriber.ts   @google/genai client, inline audio, system instruction
-├── injector.ts      Clipboard + OS-level Ctrl+V (xdotool / ydotool / wtype)
-├── config.ts        Settings reader + SecretStorage for API key
-└── status.ts        Status bar item with idle / recording / transcribing states
+├── extension.ts     VS Code: activation, commands, state machine
+├── recorder.ts      Shared: detect + spawn arecord / sox / ffmpeg
+├── transcriber.ts   Shared: @google/genai client with inline audio + sys instruction
+├── injector.ts      VS Code: clipboard + OS-level Ctrl+V
+├── config.ts        VS Code: settings reader + SecretStorage for API key
+├── status.ts        VS Code: status bar item
+└── cli/
+    ├── main.ts      CLI entry: argument parsing, state machine, notifications
+    ├── inject.ts    CLI: xclip/xsel/wl-copy + xdotool/ydotool/wtype
+    └── config.ts    CLI: ~/.config/voice-coder/{config.json,api-key}
+
+scripts/
+└── install-cli.sh   Symlinks out/cli.js to ~/.local/bin/voice-coder
 ```
 
 ---

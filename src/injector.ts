@@ -22,6 +22,13 @@ async function clipboardPaste(text: string, restore: boolean): Promise<void> {
   await vscode.env.clipboard.writeText(text);
   await sleep(40);
 
+  // Don't fire OS-level Ctrl+V if VS Code isn't the focused window — the
+  // keystroke would land in whatever app the user clicked into. The transcript
+  // is already in the clipboard, so they can paste it manually whenever.
+  if (!vscode.window.state.focused) {
+    return;
+  }
+
   const osTool = detectOsTool();
   if (osTool !== "none") {
     // Preferred path: a system-level Ctrl+V works in editor, Copilot Chat

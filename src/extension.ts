@@ -168,6 +168,14 @@ async function stopAndTranscribe(context: vscode.ExtensionContext): Promise<void
 
     setState("idle");
     statusBar?.set("idle");
+
+    // Brief feedback: confirm what was transcribed and that it's in the clipboard
+    const preview = text.length > 60 ? text.slice(0, 60) + "…" : text;
+    const focused = vscode.window.state.focused;
+    const msg = focused
+      ? `Voice Coder: ✓ ${preview}`
+      : `Voice Coder: clipboard ↓ ${preview} (VS Code wasn't focused — Ctrl+V to paste)`;
+    void vscode.window.setStatusBarMessage(msg, focused ? 3000 : 8000);
   } catch (err) {
     setState("idle");
     // Abort is an expected cancellation — don't surface it as an error toast
