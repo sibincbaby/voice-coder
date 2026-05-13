@@ -8,6 +8,9 @@ import {
 import { readHistory, clearHistory, readLogLines, clearLogs } from "./store";
 import { pasteToolName } from "./inject";
 import { renderUi } from "./ui";
+import {
+  isRecording, startRecording, stopAndTranscribe, cancelRecording, getStatus,
+} from "./session";
 
 export interface ServerHandle {
   port: number;
@@ -90,6 +93,45 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   // ----- test connection -----
   if (pathname === "/api/test-connection" && method === "POST") {
     return testConnection(res);
+  }
+
+  // ----- record -----
+  if (pathname === "/api/record/status" && method === "GET") {
+    return sendJson(res, 200, getStatus());
+  }
+  if (pathname === "/api/record/start" && method === "POST") {
+    if (isRecording()) {
+      return sendJson(res, 409, { error: "Already recording" });
+    }
+    try {
+      const state = startRecording();
+      return sendJson(res, 200, {
+        state: "recording",
+        pid: state.pid,
+        startedAt: state.startedAt,
+        tool: state.tool,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return sendJson(res, 500, { error: msg });
+    }
+  }
+  if (pathname === "/api/record/stop" && method === "POST") {
+    const body = await readJson<{ paste?: boolean }>(req).catch(() => ({} as { paste?: boolean }));
+    // Default to skipPaste from UI — user's focus is in the browser, not in
+    // wherever they want the text. Clipboard write still happens so they can
+    // paste it themselves.
+    try {
+      const result = await stopAndTranscribe({ paste: body.paste === true });
+      return sendJson(res, 200, result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return sendJson(res, 500, { error: msg });
+    }
+  }
+  if (pathname === "/api/record/cancel" && method === "POST") {
+    const cancelled = cancelRecording();
+    return sendJson(res, 200, { cancelled });
   }
 
   // ----- history -----

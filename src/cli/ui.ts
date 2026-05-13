@@ -144,6 +144,46 @@ const PAGE = `<!doctype html>
   }
   .badge.good { color: var(--good); border-color: rgba(92,221,139,0.4); }
   .badge.bad  { color: var(--bad);  border-color: rgba(255,122,144,0.4); }
+
+  .record-row {
+    display: flex; align-items: center; gap: 14px; padding: 8px 0;
+  }
+  .record-meta { display: flex; align-items: center; gap: 10px; }
+  button.btn.record {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; min-width: 130px; justify-content: center;
+    background: linear-gradient(180deg, #e34d65 0%, #c63d52 100%);
+    border: 1px solid #d54562; box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+    font-weight: 600;
+  }
+  button.btn.record:hover {
+    background: linear-gradient(180deg, #ee5973 0%, #d04458 100%);
+  }
+  button.btn.record.recording {
+    background: linear-gradient(180deg, #3a3f4a 0%, #2c313c 100%);
+    border-color: #424857;
+  }
+  button.btn.record .rec-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 6px rgba(255,255,255,0.6);
+  }
+  button.btn.record.recording .rec-dot {
+    background: var(--bad); box-shadow: 0 0 0 0 rgba(255,122,144,0.6);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  button.btn.record:disabled {
+    opacity: 0.55; cursor: progress;
+    background: linear-gradient(180deg, #4b5161 0%, #3a3f4a 100%);
+    border-color: #424857;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255,122,144,0.6); }
+    70%  { box-shadow: 0 0 0 10px rgba(255,122,144,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,122,144,0); }
+  }
+
+  .record-result { margin-top: 16px; }
+  .record-result textarea { font-size: 13px; min-height: 80px; }
 </style>
 </head>
 <body>
@@ -165,6 +205,37 @@ const PAGE = `<!doctype html>
 
   <!-- Config -->
   <section data-pane="config">
+
+    <!-- Test recording panel -->
+    <div class="panel">
+      <h2>Test recording</h2>
+      <div class="hint">Record from the browser to test config changes. The transcript appears below and is also copied to your clipboard. Auto-paste is off here (your focus is in this tab, not where you want the text).</div>
+
+      <div class="record-row">
+        <button class="btn record" id="record-btn">
+          <span class="rec-dot"></span>
+          <span id="record-label">Record</span>
+        </button>
+        <div class="record-meta">
+          <span id="record-timer" class="mono">00:00</span>
+          <span id="record-status" class="badge" hidden></span>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn secondary" id="record-cancel" hidden>Cancel</button>
+      </div>
+
+      <div id="record-result" class="record-result" hidden>
+        <label>Last transcript</label>
+        <textarea id="record-text" readonly rows="4"></textarea>
+        <div class="toolbar" style="margin-top:8px;">
+          <span class="meta mono" id="record-result-meta"></span>
+          <div class="spacer"></div>
+          <button class="btn secondary" id="record-copy">Copy</button>
+          <button class="btn secondary" id="record-clear">Clear</button>
+        </div>
+      </div>
+    </div>
+
     <div class="panel">
       <h2>Model & behavior</h2>
       <div class="hint">Changes are saved on click. The next <span class="mono">voice-coder toggle</span> picks them up — no restart needed.</div>
@@ -508,8 +579,133 @@ const PAGE = `<!doctype html>
   $("#f-auto-refresh").addEventListener("change", (e) => setLogsAutoRefresh(e.target.checked));
   setLogsAutoRefresh(true);
 
+  // ---------- record (test from UI) ----------
+  let recordState = "idle";      // 'idle' | 'recording' | 'transcribing'
+  let recordStartedAt = 0;
+  let recordTimer = null;
+  let recordStatusPoll = null;
+
+  function fmtElapsed(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function setRecordUi(state, opts = {}) {
+    recordState = state;
+    const btn = $("#record-btn");
+    const lbl = $("#record-label");
+    const cancel = $("#record-cancel");
+    const status = $("#record-status");
+
+    btn.classList.toggle("recording", state === "recording");
+    btn.disabled = (state === "transcribing");
+
+    if (state === "idle") {
+      lbl.textContent = "Record";
+      cancel.hidden = true;
+      status.hidden = true;
+      $("#record-timer").textContent = "00:00";
+    } else if (state === "recording") {
+      lbl.textContent = "Stop";
+      cancel.hidden = false;
+      status.hidden = true;
+    } else if (state === "transcribing") {
+      lbl.textContent = "Transcribing…";
+      cancel.hidden = true;
+      status.hidden = false;
+      status.className = "badge";
+      status.textContent = opts.label || "calling Gemini…";
+    }
+  }
+
+  function startTimer() {
+    if (recordTimer) clearInterval(recordTimer);
+    recordTimer = setInterval(() => {
+      $("#record-timer").textContent = fmtElapsed(Date.now() - recordStartedAt);
+    }, 250);
+  }
+  function stopTimer() {
+    if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
+  }
+
+  async function refreshRecordStatus() {
+    try {
+      const s = await api("GET", "/api/record/status");
+      if (s.state === "recording" && recordState !== "recording") {
+        recordStartedAt = s.startedAt;
+        setRecordUi("recording");
+        startTimer();
+      } else if (s.state === "idle" && recordState === "recording") {
+        // External cancel (e.g. via keyboard shortcut)
+        setRecordUi("idle");
+        stopTimer();
+      }
+    } catch { /* server gone, ignore */ }
+  }
+
+  function startStatusPoll() {
+    if (recordStatusPoll) clearInterval(recordStatusPoll);
+    // Light poll so UI reflects state changes caused by the keyboard shortcut
+    recordStatusPoll = setInterval(refreshRecordStatus, 1500);
+  }
+
+  async function recordToggle() {
+    if (recordState === "transcribing") return;
+    if (recordState === "idle") {
+      try {
+        const s = await api("POST", "/api/record/start");
+        recordStartedAt = s.startedAt || Date.now();
+        setRecordUi("recording");
+        startTimer();
+      } catch (err) {
+        toast("Couldn't start: " + err.message, "bad");
+      }
+    } else if (recordState === "recording") {
+      stopTimer();
+      setRecordUi("transcribing");
+      try {
+        const r = await api("POST", "/api/record/stop", { paste: false });
+        showResult(r);
+        setRecordUi("idle");
+        // Refresh history so the new entry appears if user clicks that tab
+        if (currentTab === "history") loadHistory();
+      } catch (err) {
+        setRecordUi("idle");
+        toast("Transcription failed: " + err.message, "bad");
+      }
+    }
+  }
+
+  function showResult(r) {
+    $("#record-result").hidden = false;
+    $("#record-text").value = r.text || "";
+    $("#record-result-meta").textContent =
+      \`\${r.durationMs}ms · \${Math.round((r.audioBytes||0)/1024)} kB · paste=\${r.paste}\`;
+    toast("Transcribed — copied to clipboard.", "ok");
+  }
+
+  $("#record-btn").addEventListener("click", recordToggle);
+  $("#record-cancel").addEventListener("click", async () => {
+    try {
+      await api("POST", "/api/record/cancel");
+    } catch (err) {
+      toast(err.message, "bad");
+    }
+    stopTimer();
+    setRecordUi("idle");
+  });
+  $("#record-copy").addEventListener("click", async () => {
+    await navigator.clipboard.writeText($("#record-text").value);
+    toast("Copied.", "ok");
+  });
+  $("#record-clear").addEventListener("click", () => {
+    $("#record-result").hidden = true;
+    $("#record-text").value = "";
+  });
+
   // ---------- boot ----------
-  Promise.all([loadConfig(), loadApiKey()]).catch((err) => toast(err.message, "bad"));
+  Promise.all([loadConfig(), loadApiKey(), refreshRecordStatus()]).catch((err) => toast(err.message, "bad"));
+  startStatusPoll();
 })();
 </script>
 

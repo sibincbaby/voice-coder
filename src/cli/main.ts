@@ -1,27 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
-import { randomUUID } from "node:crypto";
 import * as readline from "node:readline";
 
-import { AudioRecorder } from "../recorder";
-import { transcribe } from "../transcriber";
-import { writeClipboard, firePaste, pasteToolName } from "./inject";
+import { pasteToolName } from "./inject";
 import {
   loadConfig, loadApiKey, saveApiKey, clearApiKey, configFile, apiKeyFile, configDir,
   type CliConfig,
 } from "./config";
-import { appendHistory, log } from "./store";
-
-const LOCKFILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.lock`);
-
-interface LockState {
-  pid: number;
-  wavPath: string;
-  startedAt: number;
-  tool: string;
-}
+import {
+  isRecording, startRecording, stopAndTranscribe, cancelRecording, getStatus,
+} from "./session";
 
 // ---------- main ----------
 
@@ -30,9 +17,9 @@ async function main(argv: string[]): Promise<number> {
   try {
     switch (cmd) {
       case "toggle": return await cmdToggle(rest);
-      case "record": return await cmdRecord();
+      case "record": return cmdRecord();
       case "stop":   return await cmdStop(rest);
-      case "cancel": return await cmdCancel();
+      case "cancel": return cmdCancel();
       case "status": return cmdStatus();
       case "set-key": return await cmdSetKey();
       case "clear-key": return cmdClearKey();
@@ -57,116 +44,31 @@ async function main(argv: string[]): Promise<number> {
 // ---------- commands ----------
 
 async function cmdToggle(rest: string[]): Promise<number> {
-  if (isRecording()) {
-    return cmdStop(rest);
-  }
+  if (isRecording()) return cmdStop(rest);
   return cmdRecord();
 }
 
-async function cmdRecord(): Promise<number> {
-  if (isRecording()) {
-    console.error("Already recording. Run `voice-coder stop` or `voice-coder cancel`.");
-    return 1;
-  }
-  const cfg = loadConfig();
-  const tool = AudioRecorder.detect(cfg.audioTool);
-
-  const wavPath = path.join(os.tmpdir(), `voice-coder-${randomUUID()}.wav`);
-  const { bin, args } = buildRecorderCommand(tool, cfg.sampleRate, wavPath);
-
-  // Detached so we can return immediately while arecord/sox/ffmpeg keeps going
-  const proc = spawn(bin, args, { stdio: "ignore", detached: true });
-  proc.unref();
-  if (!proc.pid) throw new Error(`Failed to spawn ${bin}`);
-
-  const state: LockState = { pid: proc.pid, wavPath, startedAt: Date.now(), tool };
-  fs.writeFileSync(LOCKFILE, JSON.stringify(state));
-
+function cmdRecord(): number {
+  const state = startRecording();
   notify("Voice Coder", "Recording — press the shortcut again to stop", "low");
-  log("info", `Started recording (pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
-  console.log(`Recording (pid=${proc.pid}, wav=${wavPath})`);
-
-  // Schedule a self-stop if no one calls stop within maxRecordingSeconds.
-  // We can't sit and wait because we want this process to exit, so we spawn
-  // a tiny watcher: a `sh -c` that sleeps, then signals the recorder.
-  scheduleWatchdog(proc.pid, cfg.maxRecordingSeconds);
+  console.log(`Recording (pid=${state.pid}, wav=${state.wavPath})`);
   return 0;
 }
 
 async function cmdStop(rest: string[]): Promise<number> {
   const wantCopyOnly = rest.includes("--copy-only") || rest.includes("-c");
-  const state = readLock();
-  if (!state) {
-    console.error("Not recording.");
-    return 1;
-  }
-  const cfg = loadConfig();
-  const apiKey = loadApiKey();
-  if (!apiKey) {
-    cleanupAfterStop(state.pid, state.wavPath, true);
-    throw new Error("No Gemini API key. Run `voice-coder set-key` first.");
-  }
-
-  // Tell the recorder to wrap up
-  try { process.kill(state.pid, "SIGINT"); } catch { /* already gone */ }
-  await waitForExit(state.pid, 3000);
-  fs.rmSync(LOCKFILE, { force: true });
-
-  if (!fs.existsSync(state.wavPath) || fs.statSync(state.wavPath).size < 1024) {
-    AudioRecorder.cleanup(state.wavPath);
-    throw new Error("Recording produced no audio (check your default mic).");
-  }
-
   notify("Voice Coder", "Transcribing…", "low");
-  const audioBytes = fs.statSync(state.wavPath).size;
-  const t0 = Date.now();
-  let text: string;
-  try {
-    text = await transcribe({
-      apiKey,
-      model: cfg.model,
-      systemInstruction: cfg.systemInstruction,
-      wavPath: state.wavPath,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log("error", `Transcription failed (model=${cfg.model}): ${msg}`);
-    appendHistory({
-      ts: new Date().toISOString(),
-      model: cfg.model,
-      text: "",
-      durationMs: Date.now() - t0,
-      audioBytes,
-      error: msg,
-    });
-    throw err;
-  } finally {
-    AudioRecorder.cleanup(state.wavPath);
-  }
-  const durationMs = Date.now() - t0;
-  log("info", `Transcribed (model=${cfg.model}, ${audioBytes}B audio, ${durationMs}ms, ${text.length} chars)`);
-  appendHistory({
-    ts: new Date().toISOString(),
-    model: cfg.model,
-    text,
-    durationMs,
-    audioBytes,
-  });
+  const result = await stopAndTranscribe({ paste: !wantCopyOnly });
+  const { text, paste } = result;
 
-  writeClipboard(text);
-
-  const autoPaste = cfg.autoPaste && !wantCopyOnly;
-  if (autoPaste) {
-    const fired = firePaste();
-    if (!fired) {
-      notify(
-        "Voice Coder",
-        `Copied to clipboard (no paste tool — install xdotool/ydotool/wtype):\n${preview(text)}`,
-        "normal",
-      );
-    } else {
-      notify("Voice Coder", `✓ ${preview(text)}`, "low");
-    }
+  if (paste === "fired") {
+    notify("Voice Coder", `✓ ${preview(text)}`, "low");
+  } else if (paste === "unavailable") {
+    notify(
+      "Voice Coder",
+      `Copied to clipboard (no paste tool — install xdotool/ydotool/wtype):\n${preview(text)}`,
+      "normal",
+    );
   } else {
     notify("Voice Coder", `Copied to clipboard:\n${preview(text)}`, "normal");
   }
@@ -174,32 +76,28 @@ async function cmdStop(rest: string[]): Promise<number> {
   return 0;
 }
 
-async function cmdCancel(): Promise<number> {
-  const state = readLock();
-  if (!state) {
+function cmdCancel(): number {
+  if (!cancelRecording()) {
     console.error("Not recording.");
     return 1;
   }
-  cleanupAfterStop(state.pid, state.wavPath, true);
-  log("info", `Recording cancelled by user`);
   notify("Voice Coder", "Recording cancelled", "low");
   console.log("Cancelled.");
   return 0;
 }
 
 function cmdStatus(): number {
-  const state = readLock();
-  if (!state) {
+  const s = getStatus();
+  if (s.state === "idle") {
     console.log("idle");
     return 0;
   }
-  const elapsed = Math.round((Date.now() - state.startedAt) / 1000);
-  console.log(`recording (pid=${state.pid}, ${elapsed}s elapsed, tool=${state.tool})`);
+  const elapsedSec = Math.round((s.elapsedMs ?? 0) / 1000);
+  console.log(`recording (pid=${s.pid}, ${elapsedSec}s elapsed, tool=${s.tool})`);
   return 0;
 }
 
 async function cmdSetKey(): Promise<number> {
-  // Try to read from a TTY; if there isn't one, accept from stdin
   const key = process.stdin.isTTY ? await promptPassword("Gemini API key: ") : await readAllStdin();
   if (!key.trim()) {
     console.error("No key entered.");
@@ -235,7 +133,6 @@ async function cmdUi(rest: string[]): Promise<number> {
   notify("Voice Coder", `UI: ${handle.url}`, "low");
   if (!noOpen) openBrowser(handle.url);
 
-  // Keep alive until SIGINT
   return new Promise<number>((resolve) => {
     const shutdown = () => {
       console.log("\nShutting down…");
@@ -257,7 +154,6 @@ function openBrowser(url: string): void {
 }
 
 function cmdConfig(): number {
-  // Print resolved paths and current effective config
   const cfg = loadConfig();
   console.log(`config file: ${configFile()}`);
   console.log(`api key file: ${apiKeyFile()} (${loadApiKey() ? "set" : "unset"})`);
@@ -298,66 +194,6 @@ Config:  ${configDir()}/config.json
 
 // ---------- helpers ----------
 
-function isRecording(): boolean { return readLock() !== null; }
-
-function readLock(): LockState | null {
-  if (!fs.existsSync(LOCKFILE)) return null;
-  try {
-    const state = JSON.parse(fs.readFileSync(LOCKFILE, "utf8")) as LockState;
-    // Stale lockfile (process is gone) — clean it up
-    try { process.kill(state.pid, 0); } catch {
-      fs.rmSync(LOCKFILE, { force: true });
-      AudioRecorder.cleanup(state.wavPath);
-      return null;
-    }
-    return state;
-  } catch {
-    fs.rmSync(LOCKFILE, { force: true });
-    return null;
-  }
-}
-
-function cleanupAfterStop(pid: number, wavPath: string, killProc: boolean): void {
-  if (killProc) {
-    try { process.kill(pid, "SIGINT"); } catch { /* noop */ }
-    setTimeout(() => { try { process.kill(pid, "SIGKILL"); } catch { /* noop */ } }, 800).unref();
-  }
-  fs.rmSync(LOCKFILE, { force: true });
-  AudioRecorder.cleanup(wavPath);
-}
-
-function buildRecorderCommand(tool: string, sr: number, out: string): { bin: string; args: string[] } {
-  const r = String(sr);
-  switch (tool) {
-    case "arecord":
-      return { bin: "arecord", args: ["-q", "-f", "S16_LE", "-r", r, "-c", "1", "-t", "wav", out] };
-    case "sox":
-      return { bin: "sox", args: ["-q", "-d", "-r", r, "-c", "1", "-b", "16", out] };
-    case "ffmpeg":
-      return { bin: "ffmpeg", args: ["-loglevel", "error", "-f", "alsa", "-i", "default", "-ar", r, "-ac", "1", "-y", out] };
-    default:
-      throw new Error(`Unknown recorder tool: ${tool}`);
-  }
-}
-
-function scheduleWatchdog(pid: number, maxSeconds: number): void {
-  // Detached `sh` that sleeps then SIGINTs the recorder. Survives this
-  // process exiting. Does nothing if the recorder has already stopped.
-  const script = `sleep ${maxSeconds}; kill -INT ${pid} 2>/dev/null; true`;
-  const w = spawn("sh", ["-c", script], { stdio: "ignore", detached: true });
-  w.unref();
-}
-
-async function waitForExit(pid: number, timeoutMs: number): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try { process.kill(pid, 0); } catch { return; }
-    await sleep(50);
-  }
-}
-
-function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
-
 function preview(s: string): string {
   const oneLine = s.replace(/\s+/g, " ").trim();
   return oneLine.length > 120 ? oneLine.slice(0, 120) + "…" : oneLine;
@@ -377,7 +213,6 @@ function safeLoadConfigForNotify(): CliConfig | null {
 
 function promptPassword(label: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-  // Mute echo: re-render the prompt and swallow keypress output
   return new Promise((resolve) => {
     process.stdout.write(label);
     let buf = "";
