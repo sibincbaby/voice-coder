@@ -119,6 +119,7 @@ async function cmdUi(rest: string[]): Promise<number> {
   const { startServer } = await import("./server");
   const portArg = parseArg(rest, "--port");
   const noOpen = rest.includes("--no-open");
+  const appMode = rest.includes("--app");
   const port = portArg ? parseInt(portArg, 10) : 7777;
 
   const handle = await startServer({ port }).catch((err) => {
@@ -131,7 +132,10 @@ async function cmdUi(rest: string[]): Promise<number> {
   console.log(`Voice Coder UI running at ${handle.url}`);
   console.log(`Press Ctrl+C to stop.`);
   notify("Voice Coder", `UI: ${handle.url}`, "low");
-  if (!noOpen) openBrowser(handle.url);
+  if (!noOpen) {
+    if (appMode) openInAppMode(handle.url);
+    else         openBrowser(handle.url);
+  }
 
   return new Promise<number>((resolve) => {
     const shutdown = () => {
@@ -151,6 +155,24 @@ function parseArg(rest: string[], name: string): string | null {
 
 function openBrowser(url: string): void {
   spawn("xdg-open", [url], { stdio: "ignore", detached: true }).unref();
+}
+
+function openInAppMode(url: string): void {
+  // Try Chrome / Chromium / Brave in --app= mode for a chromeless window
+  // that feels native. If none are installed, fall back to xdg-open.
+  const candidates = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser"];
+  for (const bin of candidates) {
+    try {
+      const out = spawnSync("command", ["-v", bin], { stdio: "ignore", shell: true });
+      if (out.status === 0) {
+        spawn(bin, [`--app=${url}`, "--new-window", "--no-first-run"], { stdio: "ignore", detached: true }).unref();
+        return;
+      }
+    } catch { /* try next */ }
+  }
+  // Fallback
+  console.log("(No Chrome/Chromium found for --app mode; opening default browser instead.)");
+  openBrowser(url);
 }
 
 function cmdConfig(): number {

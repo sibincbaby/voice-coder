@@ -15,7 +15,9 @@ import { randomUUID } from "node:crypto";
 
 import { AudioRecorder, type AudioTool } from "../recorder";
 import { transcribe } from "../transcriber";
-import { loadConfig, loadApiKey } from "./config";
+import { loadApiKey } from "./config";
+import { getActive as getActiveProfile, listProfiles } from "./profiles";
+import type { Profile } from "./profiles";
 import { writeClipboard, firePaste } from "./inject";
 import { appendHistory, log } from "./store";
 
@@ -26,6 +28,7 @@ interface LockState {
   wavPath: string;
   startedAt: number;
   tool: AudioTool;
+  profileId?: string;   // optional for backward compat with pre-profile lockfiles
 }
 
 export interface SessionStatus {
@@ -61,24 +64,26 @@ export function getStatus(): SessionStatus {
   };
 }
 
-export function startRecording(): LockState {
+export function startRecording(): LockState & { profileId: string; profileName: string } {
   if (readLock() !== null) {
     throw new Error("Already recording. Stop or cancel first.");
   }
-  const cfg = loadConfig();
-  const tool = AudioRecorder.detect(cfg.audioTool);
+  const profile = getActiveProfile();
+  const tool = AudioRecorder.detect(profile.audioTool);
   const wavPath = path.join(os.tmpdir(), `voice-coder-${randomUUID()}.wav`);
-  const { bin, args } = buildRecorderCommand(tool, cfg.sampleRate, wavPath);
+  const { bin, args } = buildRecorderCommand(tool, profile.sampleRate, wavPath);
 
   const proc = spawn(bin, args, { stdio: "ignore", detached: true });
   proc.unref();
   if (!proc.pid) throw new Error(`Failed to spawn ${bin}`);
 
-  const state: LockState = { pid: proc.pid, wavPath, startedAt: Date.now(), tool };
+  // Lock the profile in at start time, so even if the user switches profiles
+  // mid-recording the transcription uses the same one that started it.
+  const state: LockState = { pid: proc.pid, wavPath, startedAt: Date.now(), tool, profileId: profile.id };
   fs.writeFileSync(LOCKFILE, JSON.stringify(state));
-  log("info", `Started recording (pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
-  scheduleWatchdog(proc.pid, cfg.maxRecordingSeconds);
-  return state;
+  log("info", `Started recording (profile=${profile.name}, pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
+  scheduleWatchdog(proc.pid, profile.maxRecordingSeconds);
+  return { ...state, profileId: profile.id, profileName: profile.name };
 }
 
 export interface StopOptions {
@@ -94,11 +99,15 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
 
   const state = readLock();
   if (!state) throw new Error("Not recording.");
-  const cfg = loadConfig();
+
+  // Use the profile that was active when recording started (locked into the
+  // lockfile). Falls back to current active profile for pre-profile lockfiles.
+  const profile = profileById(state.profileId) ?? getActiveProfile();
+
   const apiKey = loadApiKey();
   if (!apiKey) {
     cleanupAfterStop(state.pid, state.wavPath, true);
-    throw new Error("No Gemini API key. Run `voice-coder set-key` or set it in the UI.");
+    throw new Error("No Gemini API key. Set one in the UI or run `voice-coder set-key`.");
   }
 
   try { process.kill(state.pid, "SIGINT"); } catch { /* already gone */ }
@@ -116,20 +125,22 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   try {
     text = await transcribe({
       apiKey,
-      model: cfg.model,
-      systemInstruction: cfg.systemInstruction,
+      model: profile.model,
+      systemInstruction: profile.systemInstruction,
       wavPath: state.wavPath,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log("error", `Transcription failed (model=${cfg.model}): ${msg}`);
+    log("error", `Transcription failed (profile=${profile.name}, model=${profile.model}): ${msg}`);
     appendHistory({
       ts: new Date().toISOString(),
-      model: cfg.model,
+      model: profile.model,
       text: "",
       durationMs: Date.now() - t0,
       audioBytes,
       error: msg,
+      profileId: profile.id,
+      profileName: profile.name,
     });
     throw err;
   } finally {
@@ -137,23 +148,31 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   }
 
   const durationMs = Date.now() - t0;
-  log("info", `Transcribed (model=${cfg.model}, ${audioBytes}B audio, ${durationMs}ms, ${text.length} chars)`);
+  log("info", `Transcribed (profile=${profile.name}, model=${profile.model}, ${audioBytes}B, ${durationMs}ms, ${text.length} chars)`);
   appendHistory({
     ts: new Date().toISOString(),
-    model: cfg.model,
+    model: profile.model,
     text,
     durationMs,
     audioBytes,
+    profileId: profile.id,
+    profileName: profile.name,
   });
 
   if (copy) writeClipboard(text);
 
   let pasteResult: "fired" | "skipped" | "unavailable" = "skipped";
-  if (paste && cfg.autoPaste) {
+  if (paste && profile.autoPaste) {
     pasteResult = firePaste() ? "fired" : "unavailable";
   }
 
   return { text, durationMs, audioBytes, paste: pasteResult };
+}
+
+function profileById(id: string | undefined): Profile | null {
+  if (!id) return null;
+  const all = listProfiles().profiles;
+  return all.find((p) => p.id === id) ?? null;
 }
 
 export function cancelRecording(): boolean {

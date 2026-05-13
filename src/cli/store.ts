@@ -12,6 +12,8 @@ export interface HistoryEntry {
   durationMs: number;    // wall-clock for the Gemini call
   audioBytes: number;
   error?: string;
+  profileId?: string;
+  profileName?: string;
 }
 
 function historyFile(): string { return path.join(configDir(), "history.jsonl"); }

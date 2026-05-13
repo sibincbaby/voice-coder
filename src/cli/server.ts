@@ -5,6 +5,10 @@ import {
   loadConfig, saveConfig, loadApiKey, saveApiKey, clearApiKey,
   configDir, configFile, apiKeyFile,
 } from "./config";
+import {
+  listProfiles, activate, create, update as updateProfile, remove as removeProfile,
+  type Profile,
+} from "./profiles";
 import { readHistory, clearHistory, readLogLines, clearLogs } from "./store";
 import { pasteToolName } from "./inject";
 import { renderUi } from "./ui";
@@ -93,6 +97,42 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   // ----- test connection -----
   if (pathname === "/api/test-connection" && method === "POST") {
     return testConnection(res);
+  }
+
+  // ----- profiles -----
+  if (pathname === "/api/profiles" && method === "GET") {
+    const list = listProfiles();
+    return sendJson(res, 200, list);
+  }
+  if (pathname === "/api/profiles" && method === "POST") {
+    const body = await readJson<Partial<Profile> & { name?: string }>(req);
+    if (!body.name) return sendJson(res, 400, { error: "name required" });
+    const profile = create({ name: body.name, ...body });
+    return sendJson(res, 200, profile);
+  }
+  // /api/profiles/:id
+  const pm = pathname.match(/^\/api\/profiles\/([A-Za-z0-9-]+)(?:\/(\w+))?$/);
+  if (pm) {
+    const [, id, action] = pm;
+    if (action === "activate" && method === "POST") {
+      const profile = activate(id);
+      return sendJson(res, 200, profile);
+    }
+    if (!action && method === "PUT") {
+      const body = await readJson<Partial<Profile>>(req);
+      // ID is immutable from the API
+      delete (body as { id?: string }).id;
+      const profile = updateProfile(id, body);
+      return sendJson(res, 200, profile);
+    }
+    if (!action && method === "DELETE") {
+      try {
+        removeProfile(id);
+        return sendJson(res, 200, { ok: true });
+      } catch (err) {
+        return sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
   }
 
   // ----- record -----
