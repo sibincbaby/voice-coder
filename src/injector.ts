@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { spawn, execSync } from "node:child_process";
+import { spawn, spawnSync, execSync } from "node:child_process";
 
 export type InjectionMethod = "clipboard-paste" | "type-command";
 
@@ -67,17 +67,50 @@ function detectOsTool(): OsTool {
 
 async function osLevelPaste(tool: Exclude<OsTool, "none">): Promise<void> {
   await sleep(30); // let focus settle
+  // Terminals (gnome-terminal, konsole, alacritty, …) only paste on
+  // Ctrl+Shift+V. Detect the active window class and pick the right keystroke.
+  const useTerminalPaste = isActiveWindowTerminal();
   try {
     if (tool === "xdotool") {
-      spawn("xdotool", ["key", "--clearmodifiers", "ctrl+v"], { stdio: "ignore" });
+      const key = useTerminalPaste ? "ctrl+shift+v" : "ctrl+v";
+      spawn("xdotool", ["key", "--clearmodifiers", key], { stdio: "ignore" });
     } else if (tool === "ydotool") {
-      // 29 = L_CTRL, 47 = V — press then release
-      spawn("ydotool", ["key", "29:1", "47:1", "47:0", "29:0"], { stdio: "ignore" });
+      // 29 = L_CTRL, 42 = L_SHIFT, 47 = V
+      const seq = useTerminalPaste
+        ? ["29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
+        : ["29:1", "47:1", "47:0", "29:0"];
+      spawn("ydotool", ["key", ...seq], { stdio: "ignore" });
     } else {
-      spawn("wtype", ["-M", "ctrl", "v", "-m", "ctrl"], { stdio: "ignore" });
+      const args = useTerminalPaste
+        ? ["-M", "ctrl", "-M", "shift", "v", "-m", "shift", "-m", "ctrl"]
+        : ["-M", "ctrl", "v", "-m", "ctrl"];
+      spawn("wtype", args, { stdio: "ignore" });
     }
   } catch (err) {
     console.error("[voice-coder] OS paste failed:", err);
+  }
+}
+
+const TERMINAL_WINDOW_CLASSES = [
+  "gnome-terminal", "konsole", "xterm", "alacritty", "kitty",
+  "terminator", "tilix", "xfce4-terminal", "mate-terminal",
+  "lxterminal", "lxterm", "urxvt", "rxvt", "termite", "wezterm",
+  "foot", "hyper", "st-256color", "guake", "yakuake", "tabby",
+  "warp", "cool-retro-term",
+];
+
+function isActiveWindowTerminal(): boolean {
+  try {
+    const wid = spawnSync("xdotool", ["getactivewindow"], { encoding: "utf8", timeout: 200 });
+    if (wid.status !== 0) return false;
+    const winId = (wid.stdout || "").trim();
+    if (!winId) return false;
+    const xp = spawnSync("xprop", ["-id", winId, "WM_CLASS"], { encoding: "utf8", timeout: 200 });
+    if (xp.status !== 0) return false;
+    const out = (xp.stdout || "").toLowerCase();
+    return TERMINAL_WINDOW_CLASSES.some((t) => out.includes(t));
+  } catch {
+    return false;
   }
 }
 
