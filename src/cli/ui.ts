@@ -298,6 +298,9 @@ const PAGE = `<!doctype html>
     position: fixed; inset: 0; background: rgba(5,7,11,0.6); display: grid; place-items: center; z-index: 50;
     backdrop-filter: blur(4px);
   }
+  /* Without this, our display: grid above clobbers the [hidden] attribute and
+     the modal would render on page load. */
+  .modal-backdrop[hidden] { display: none !important; }
   .modal {
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
     padding: var(--s-5); width: 420px; max-width: 92vw; box-shadow: var(--shadow-md);
