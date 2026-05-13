@@ -1,5 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import * as readline from "node:readline";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 import { pasteToolName } from "./inject";
 import {
@@ -221,12 +224,78 @@ function preview(s: string): string {
   return oneLine.length > 120 ? oneLine.slice(0, 120) + "…" : oneLine;
 }
 
+const NOTIFY_ID_FILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.notify-id`);
+const URGENCY_TO_INT: Record<string, number> = { low: 0, normal: 1, critical: 2 };
+
 function notify(title: string, body: string, urgency: "low" | "normal" | "critical" = "normal"): void {
   const cfg = safeLoadConfigForNotify();
   if (cfg && !cfg.notify) return;
-  spawnSync("notify-send", ["--app-name=voice-coder", `--urgency=${urgency}`, "--expire-time=4000", title, body], {
-    stdio: "ignore",
-  });
+
+  // Each new state ("Recording…" → "Transcribing…" → "✓ done") should
+  // REPLACE the previous notification, not stack a new one in the tray.
+  //
+  // The old notify-send (libnotify ≤ 0.7.x, what Ubuntu 22.04 / Mint 21
+  // ship) doesn't expose --replace-id, so we talk to the notification
+  // daemon directly over DBus via gdbus. Falls back to plain notify-send
+  // if gdbus isn't installed (no replace, but still notifies).
+  let prevId = readPrevNotifyId();
+
+  const id = sendViaDbus(title, body, urgency, prevId);
+  if (id !== null) {
+    writePrevNotifyId(id);
+    return;
+  }
+  // Fallback: best-effort, will stack
+  try {
+    spawnSync("notify-send", [
+      "--app-name=voice-coder",
+      `--urgency=${urgency}`,
+      "--expire-time=4000",
+      title, body,
+    ], { stdio: "ignore" });
+  } catch { /* notify-send missing too — silently drop */ }
+}
+
+function sendViaDbus(title: string, body: string, urgency: string, replaceId: number): number | null {
+  // Hints dict: just urgency. GDBus signature: a{sv}, formatted as
+  // {"urgency": <byte 0|1|2>}.
+  const hints = `{"urgency": <byte ${URGENCY_TO_INT[urgency] ?? 1}>}`;
+  const args = [
+    "call", "--session",
+    "--dest=org.freedesktop.Notifications",
+    "--object-path=/org/freedesktop/Notifications",
+    "--method=org.freedesktop.Notifications.Notify",
+    "voice-coder",            // app_name
+    String(replaceId),        // replaces_id (0 = new)
+    "",                       // app_icon
+    title,
+    body,
+    "[]",                     // actions
+    hints,
+    "4000",                   // expire_timeout (ms)
+  ];
+  try {
+    const r = spawnSync("gdbus", args, { encoding: "utf8", timeout: 1000 });
+    if (r.status !== 0) return null;
+    // Output looks like:  (uint32 42,)
+    const m = (r.stdout || "").match(/uint32\s+(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readPrevNotifyId(): number {
+  try {
+    if (!fs.existsSync(NOTIFY_ID_FILE)) return 0;
+    const raw = fs.readFileSync(NOTIFY_ID_FILE, "utf8").trim();
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch { return 0; }
+}
+
+function writePrevNotifyId(id: number): void {
+  try { fs.writeFileSync(NOTIFY_ID_FILE, String(id)); } catch { /* ignore */ }
 }
 
 function safeLoadConfigForNotify(): CliConfig | null {

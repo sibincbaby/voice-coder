@@ -58,23 +58,7 @@
         "title": "Voice Coder: Open Settings"
       }
     ],
-    "keybindings": [
-      {
-        "command": "voiceCoder.toggleRecording",
-        "key": "ctrl+alt+v",
-        "mac": "cmd+alt+v"
-      },
-      {
-        "command": "voiceCoder.cancelRecording",
-        "key": "ctrl+alt+x",
-        "mac": "cmd+alt+x"
-      },
-      {
-        "command": "voiceCoder.cancelRecording",
-        "key": "escape",
-        "when": "voiceCoder.recording"
-      }
-    ],
+    "keybindings": [],
     "configuration": {
       "title": "Voice Coder",
       "properties": {
