@@ -376,8 +376,8 @@ const PAGE = `<!doctype html>
     toast._t = setTimeout(() => el.classList.remove("show"), 2400);
   }
 
-  async function api(method, path, body) {
-    const opts = { method, headers: {} };
+  async function api(method, path, body, signal) {
+    const opts = { method, headers: {}, signal };
     if (body !== undefined) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -611,7 +611,9 @@ const PAGE = `<!doctype html>
       status.hidden = true;
     } else if (state === "transcribing") {
       lbl.textContent = "Transcribing…";
-      cancel.hidden = true;
+      // Cancel is still useful here — aborts the Gemini fetch so the user
+      // isn't stuck if the model is slow or the network drops
+      cancel.hidden = false;
       status.hidden = false;
       status.className = "badge";
       status.textContent = opts.label || "calling Gemini…";
@@ -649,30 +651,43 @@ const PAGE = `<!doctype html>
     recordStatusPoll = setInterval(refreshRecordStatus, 1500);
   }
 
+  let recordBusy = false;          // true between click and response — prevents double-fire
+  let stopAbort = null;            // AbortController for the in-flight stop request
+
   async function recordToggle() {
+    if (recordBusy) return;
     if (recordState === "transcribing") return;
-    if (recordState === "idle") {
-      try {
+    recordBusy = true;
+    $("#record-btn").disabled = true;   // hard lock until response
+
+    try {
+      if (recordState === "idle") {
         const s = await api("POST", "/api/record/start");
         recordStartedAt = s.startedAt || Date.now();
         setRecordUi("recording");
         startTimer();
-      } catch (err) {
-        toast("Couldn't start: " + err.message, "bad");
-      }
-    } else if (recordState === "recording") {
-      stopTimer();
-      setRecordUi("transcribing");
-      try {
-        const r = await api("POST", "/api/record/stop", { paste: false });
+      } else if (recordState === "recording") {
+        stopTimer();
+        setRecordUi("transcribing");
+        stopAbort = new AbortController();
+        const r = await api("POST", "/api/record/stop", { paste: false }, stopAbort.signal);
         showResult(r);
         setRecordUi("idle");
-        // Refresh history so the new entry appears if user clicks that tab
         if (currentTab === "history") loadHistory();
-      } catch (err) {
-        setRecordUi("idle");
-        toast("Transcription failed: " + err.message, "bad");
       }
+    } catch (err) {
+      // AbortError fires when the user clicks Cancel
+      if (err.name === "AbortError") {
+        toast("Cancelled.", "");
+      } else {
+        toast(err.message, "bad");
+      }
+      setRecordUi("idle");
+    } finally {
+      stopAbort = null;
+      recordBusy = false;
+      // Button re-enables inside setRecordUi() based on state
+      if (recordState !== "transcribing") $("#record-btn").disabled = false;
     }
   }
 
@@ -686,6 +701,13 @@ const PAGE = `<!doctype html>
 
   $("#record-btn").addEventListener("click", recordToggle);
   $("#record-cancel").addEventListener("click", async () => {
+    // If we're waiting on the transcribe response, abort it client-side
+    if (stopAbort) {
+      stopAbort.abort();
+      stopAbort = null;
+      return; // recordToggle()'s catch will toast and reset UI
+    }
+    // Otherwise we're recording — tell the server to discard
     try {
       await api("POST", "/api/record/cancel");
     } catch (err) {
