@@ -7,18 +7,23 @@ function which(cmd: string): boolean {
   try {
     execSync(`command -v ${cmd}`, { stdio: "ignore" });
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 let clipboardCache: ClipboardTool | null = null;
 function detectClipboard(): ClipboardTool {
   if (clipboardCache) return clipboardCache;
   for (const t of ["xclip", "xsel", "wl-copy"] as const) {
-    if (which(t)) { clipboardCache = t; return t; }
+    if (which(t)) {
+      clipboardCache = t;
+      return t;
+    }
   }
   throw new Error(
     "No clipboard tool found. Install one of: xclip (X11), xsel (X11), wl-copy (Wayland).\n" +
-    "  sudo apt install xclip",
+      "  sudo apt install xclip",
   );
 }
 
@@ -26,7 +31,10 @@ let pasteCache: PasteTool | "none" | null = null;
 function detectPaste(): PasteTool | "none" {
   if (pasteCache) return pasteCache;
   for (const t of ["xdotool", "ydotool", "wtype"] as const) {
-    if (which(t)) { pasteCache = t; return t; }
+    if (which(t)) {
+      pasteCache = t;
+      return t;
+    }
   }
   pasteCache = "none";
   return "none";
@@ -35,9 +43,11 @@ function detectPaste(): PasteTool | "none" {
 export function writeClipboard(text: string): void {
   const tool = detectClipboard();
   const cmd =
-    tool === "xclip" ? { bin: "xclip", args: ["-selection", "clipboard"] } :
-    tool === "xsel"  ? { bin: "xsel",  args: ["--clipboard", "--input"] } :
-                       { bin: "wl-copy", args: [] };
+    tool === "xclip"
+      ? { bin: "xclip", args: ["-selection", "clipboard"] }
+      : tool === "xsel"
+        ? { bin: "xsel", args: ["--clipboard", "--input"] }
+        : { bin: "wl-copy", args: [] };
 
   // CRITICAL: do NOT use spawnSync here. xclip/xsel/wl-copy must keep a
   // process ALIVE to own the X11/Wayland selection — they don't exit after
@@ -60,9 +70,11 @@ export function writeClipboard(text: string): void {
 export function readClipboard(): string {
   const tool = detectClipboard();
   const cmd =
-    tool === "xclip" ? { bin: "xclip", args: ["-selection", "clipboard", "-o"] } :
-    tool === "xsel"  ? { bin: "xsel",  args: ["--clipboard", "--output"] } :
-                       { bin: "wl-paste", args: [] };
+    tool === "xclip"
+      ? { bin: "xclip", args: ["-selection", "clipboard", "-o"] }
+      : tool === "xsel"
+        ? { bin: "xsel", args: ["--clipboard", "--output"] }
+        : { bin: "wl-paste", args: [] };
   const r = spawnSync(cmd.bin, cmd.args, { encoding: "utf8" });
   return r.stdout ?? "";
 }
@@ -103,11 +115,29 @@ export function firePaste(): boolean {
 // Known terminal-emulator window classes. Match case-insensitively against
 // whatever `xdotool getactivewindow getwindowclassname` returns.
 const TERMINAL_WINDOW_CLASSES = [
-  "gnome-terminal", "konsole", "xterm", "alacritty", "kitty",
-  "terminator", "tilix", "xfce4-terminal", "mate-terminal",
-  "lxterminal", "lxterm", "urxvt", "rxvt", "termite", "wezterm",
-  "foot", "hyper", "st-256color", "guake", "yakuake", "tabby",
-  "warp", "cool-retro-term",
+  "gnome-terminal",
+  "konsole",
+  "xterm",
+  "alacritty",
+  "kitty",
+  "terminator",
+  "tilix",
+  "xfce4-terminal",
+  "mate-terminal",
+  "lxterminal",
+  "lxterm",
+  "urxvt",
+  "rxvt",
+  "termite",
+  "wezterm",
+  "foot",
+  "hyper",
+  "st-256color",
+  "guake",
+  "yakuake",
+  "tabby",
+  "warp",
+  "cool-retro-term",
 ];
 
 function isActiveWindowTerminal(): boolean {

@@ -22,11 +22,11 @@ The trick is that **Gemini is an LLM, not a plain speech-to-text engine**. You c
 
 Before installing the extension, make sure you have these on your system:
 
-| Tool | Purpose | Install on Ubuntu/Debian |
-|---|---|---|
-| `arecord` | Records your microphone | `sudo apt install alsa-utils` (usually pre-installed) |
-| `xdotool` | Pastes transcripts into Copilot Chat, terminals, **anywhere** | `sudo apt install xdotool` |
-| A Gemini API key | The transcription brain | Free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Tool             | Purpose                                                       | Install on Ubuntu/Debian                                                 |
+| ---------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `arecord`        | Records your microphone                                       | `sudo apt install alsa-utils` (usually pre-installed)                    |
+| `xdotool`        | Pastes transcripts into Copilot Chat, terminals, **anywhere** | `sudo apt install xdotool`                                               |
+| A Gemini API key | The transcription brain                                       | Free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 
 On **Wayland** instead of X11, install `ydotool` or `wtype` in place of `xdotool`. On **macOS** and **Windows**, you'll need an equivalent paste-keystroke utility — see [platform notes](#platform-notes) below.
 
@@ -61,11 +61,11 @@ The key is stored in VS Code's encrypted SecretStorage, never in any settings fi
 3. Speak.
 4. Press **`Ctrl+Alt+V`** again to stop. The transcript appears at your cursor a moment later.
 
-| Key | What it does |
-|---|---|
-| `Ctrl+Alt+V` | Toggle recording: press once to start, press again to stop and transcribe |
+| Key          | What it does                                                                           |
+| ------------ | -------------------------------------------------------------------------------------- |
+| `Ctrl+Alt+V` | Toggle recording: press once to start, press again to stop and transcribe              |
 | `Ctrl+Alt+X` | Cancel — discard audio (during recording) or abort the API call (during transcription) |
-| `Esc` | Same as `Ctrl+Alt+X` but only while recording is active |
+| `Esc`        | Same as `Ctrl+Alt+X` but only while recording is active                                |
 
 You can also click the microphone icon in the status bar to toggle recording.
 
@@ -79,13 +79,13 @@ The CLI is the same engine without VS Code wrapped around it. You bind a global 
 
 Same as the VS Code flavor, plus a clipboard writer:
 
-| Tool | Purpose | Install on Ubuntu/Debian |
-|---|---|---|
-| `arecord` | Audio capture | `sudo apt install alsa-utils` |
-| `xclip` | Writes the transcript to the clipboard | `sudo apt install xclip` |
-| `xdotool` | Fires Ctrl+V so the transcript auto-pastes | `sudo apt install xdotool` |
-| `notify-send` | Desktop notifications | `sudo apt install libnotify-bin` |
-| `node` (≥ 20) | Runs the CLI bundle | already installed if you have pnpm |
+| Tool          | Purpose                                    | Install on Ubuntu/Debian           |
+| ------------- | ------------------------------------------ | ---------------------------------- |
+| `arecord`     | Audio capture                              | `sudo apt install alsa-utils`      |
+| `xclip`       | Writes the transcript to the clipboard     | `sudo apt install xclip`           |
+| `xdotool`     | Fires Ctrl+V so the transcript auto-pastes | `sudo apt install xdotool`         |
+| `notify-send` | Desktop notifications                      | `sudo apt install libnotify-bin`   |
+| `node` (≥ 20) | Runs the CLI bundle                        | already installed if you have pnpm |
 
 For Wayland sessions, install `wl-clipboard` and either `ydotool` or `wtype` instead of `xclip`/`xdotool`.
 
@@ -118,17 +118,18 @@ The CLI is **stateful by design**: the same command both starts and stops record
 
 **GNOME** (Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → `+`):
 
-| Field | Value |
-|---|---|
-| Name | `Voice Coder Toggle` |
-| Command | `voice-coder toggle` (or absolute path: `/home/<you>/.local/bin/voice-coder toggle`) |
-| Shortcut | Whatever you like — `Ctrl+Alt+V`, `Super+V`, `F12`, etc. |
+| Field    | Value                                                                                |
+| -------- | ------------------------------------------------------------------------------------ |
+| Name     | `Voice Coder Toggle`                                                                 |
+| Command  | `voice-coder toggle` (or absolute path: `/home/<you>/.local/bin/voice-coder toggle`) |
+| Shortcut | Whatever you like — `Ctrl+Alt+V`, `Super+V`, `F12`, etc.                             |
 
 Bind a second shortcut to `voice-coder cancel` for discarding a recording, or `voice-coder stop --copy-only` if you want clipboard-only mode (no auto-paste).
 
 **KDE Plasma**: System Settings → Shortcuts → Custom Shortcuts → Edit → New → Global Shortcut → Command/URL.
 
 **Hyprland / Sway / i3**: bind in your config:
+
 ```
 bind = SUPER, V, exec, voice-coder toggle
 ```
@@ -164,12 +165,12 @@ voice-coder ui [--port 7777]    # open the web dashboard (config, history, logs)
 
 Run `voice-coder ui` to open a local web UI at `http://localhost:7777` for editing settings without touching JSON, managing your API key, browsing past transcriptions, and tailing the log file. The server binds to **loopback only** — no remote access — and shuts down on Ctrl+C.
 
-| Tab | What it does |
-|---|---|
-| **Config** | Model picker, system instruction (the prompt that shapes Gemini's output), sample rate, max recording length, auto-paste toggle, notification toggle. Saved on click; the next `voice-coder toggle` picks them up. |
-| **API Key** | Masked display of the stored key. Set a new one, clear it, or "Test connection" — sends a tiny prompt to Gemini and reports latency / error. |
-| **History** | All past transcriptions (up to 500 most recent) with timestamp, model, audio size, API latency, and a one-click copy button. |
-| **Logs** | Tail of `~/.config/voice-coder/voice-coder.log`. Auto-refreshes every 2s. Rotates at 1MB. |
+| Tab         | What it does                                                                                                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Config**  | Model picker, system instruction (the prompt that shapes Gemini's output), sample rate, max recording length, auto-paste toggle, notification toggle. Saved on click; the next `voice-coder toggle` picks them up. |
+| **API Key** | Masked display of the stored key. Set a new one, clear it, or "Test connection" — sends a tiny prompt to Gemini and reports latency / error.                                                                       |
+| **History** | All past transcriptions (up to 500 most recent) with timestamp, model, audio size, API latency, and a one-click copy button.                                                                                       |
+| **Logs**    | Tail of `~/.config/voice-coder/voice-coder.log`. Auto-refreshes every 2s. Rotates at 1MB.                                                                                                                          |
 
 ### CLI configuration
 
@@ -187,15 +188,15 @@ Edit `~/.config/voice-coder/config.json`. All keys are optional; missing keys fa
 }
 ```
 
-| Setting | Default | Purpose |
-|---|---|---|
-| `model` | `gemini-3.1-flash-lite` | Any Gemini model that accepts audio |
-| `systemInstruction` | translation prompt | Edit freely — see the [VS Code section](#customizing-the-system-instruction) for examples |
-| `audioTool` | `auto` | `auto` / `arecord` / `sox` / `ffmpeg` |
-| `sampleRate` | `16000` | Hz |
-| `maxRecordingSeconds` | `120` | Hard auto-stop |
-| `autoPaste` | `true` | If false, transcript only goes to the clipboard |
-| `notify` | `true` | Send desktop notifications via `notify-send` |
+| Setting               | Default                 | Purpose                                                                                   |
+| --------------------- | ----------------------- | ----------------------------------------------------------------------------------------- |
+| `model`               | `gemini-3.1-flash-lite` | Any Gemini model that accepts audio                                                       |
+| `systemInstruction`   | translation prompt      | Edit freely — see the [VS Code section](#customizing-the-system-instruction) for examples |
+| `audioTool`           | `auto`                  | `auto` / `arecord` / `sox` / `ffmpeg`                                                     |
+| `sampleRate`          | `16000`                 | Hz                                                                                        |
+| `maxRecordingSeconds` | `120`                   | Hard auto-stop                                                                            |
+| `autoPaste`           | `true`                  | If false, transcript only goes to the clipboard                                           |
+| `notify`              | `true`                  | Send desktop notifications via `notify-send`                                              |
 
 Changes take effect on the next `voice-coder` invocation — no service to restart.
 
@@ -205,15 +206,15 @@ Changes take effect on the next `voice-coder` invocation — no service to resta
 
 All extension settings live under `voiceCoder.*` in your VS Code `settings.json`. Change them with `Ctrl+,` (search `voiceCoder`) or by editing `settings.json` directly. **Changes take effect immediately — no reload needed.**
 
-| Setting | Default | Purpose |
-|---|---|---|
-| `voiceCoder.model` | `gemini-3.1-flash-lite` | Any Gemini model that supports audio input |
-| `voiceCoder.systemInstruction` | (translation-focused, see below) | The prompt that shapes the output — edit freely |
-| `voiceCoder.audioTool` | `auto` | `auto` \| `arecord` \| `sox` \| `ffmpeg` |
-| `voiceCoder.sampleRate` | `16000` | Hz |
-| `voiceCoder.injectionMethod` | `clipboard-paste` | `clipboard-paste` (universal) \| `type-command` (editor only) |
-| `voiceCoder.maxRecordingSeconds` | `120` | Hard auto-stop after this many seconds |
-| `voiceCoder.restoreClipboard` | `false` | If true, restore your previous clipboard after pasting. Default false keeps the transcript in your clipboard so you can paste it again manually. |
+| Setting                          | Default                          | Purpose                                                                                                                                          |
+| -------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `voiceCoder.model`               | `gemini-3.1-flash-lite`          | Any Gemini model that supports audio input                                                                                                       |
+| `voiceCoder.systemInstruction`   | (translation-focused, see below) | The prompt that shapes the output — edit freely                                                                                                  |
+| `voiceCoder.audioTool`           | `auto`                           | `auto` \| `arecord` \| `sox` \| `ffmpeg`                                                                                                         |
+| `voiceCoder.sampleRate`          | `16000`                          | Hz                                                                                                                                               |
+| `voiceCoder.injectionMethod`     | `clipboard-paste`                | `clipboard-paste` (universal) \| `type-command` (editor only)                                                                                    |
+| `voiceCoder.maxRecordingSeconds` | `120`                            | Hard auto-stop after this many seconds                                                                                                           |
+| `voiceCoder.restoreClipboard`    | `false`                          | If true, restore your previous clipboard after pasting. Default false keeps the transcript in your clipboard so you can paste it again manually. |
 
 ### Customizing the system instruction
 
@@ -223,10 +224,10 @@ The system instruction is the most powerful knob. The default tells Gemini:
 
 Edit `voiceCoder.systemInstruction` in settings to change behavior:
 
-- **Want raw transcription in your native language?** Replace the rules with: *"Transcribe the audio verbatim in the spoken language. Output only the transcript."*
+- **Want raw transcription in your native language?** Replace the rules with: _"Transcribe the audio verbatim in the spoken language. Output only the transcript."_
 - **Want a different target language?** Change "English" to "French" / "Hindi" / etc.
-- **Want a glossary of your own dictated shortcuts?** Add: *"When the user says 'log it', output `console.log()`. When they say 'tryblock', output `try { } catch (err) { }`."*
-- **Want it to fix grammar?** Add: *"Lightly fix grammar and clarity without changing meaning."*
+- **Want a glossary of your own dictated shortcuts?** Add: _"When the user says 'log it', output `console.log()`. When they say 'tryblock', output `try { } catch (err) { }`."_
+- **Want it to fix grammar?** Add: _"Lightly fix grammar and clarity without changing meaning."_
 
 Gemini follows the instruction strictly — experiment.
 
@@ -243,15 +244,19 @@ Any model that accepts audio input should work. You can swap models any time wit
 ## Platform notes
 
 ### Linux (X11)
+
 Use `xdotool`. Tested on Ubuntu 22.04 / 24.04.
 
 ### Linux (Wayland)
+
 Use `ydotool` (requires running a daemon — see [ydotool docs](https://github.com/ReimuNotMoe/ydotool)) or `wtype` (no daemon needed; KDE/Sway/Hyprland). The extension auto-detects.
 
 ### macOS
+
 **Not fully tested.** The recorder code expects `sox` or `ffmpeg` (Homebrew: `brew install sox ffmpeg`). The OS-level paste needs an AppleScript equivalent — not yet implemented. Contributions welcome.
 
 ### Windows
+
 **Not yet supported.** Would need PowerShell-based audio capture and `SendKeys`-based paste. Contributions welcome.
 
 ---

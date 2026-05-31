@@ -10,11 +10,14 @@ import * as os from "node:os";
 export type UiState = "idle" | "recording" | "transcribing";
 
 export const STATE_FILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.state`);
-export const TRAY_PIDFILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.tray.pid`);
+export const TRAY_PIDFILE = path.join(
+  os.tmpdir(),
+  `voice-coder-${process.env.USER ?? "user"}.tray.pid`,
+);
 
 export interface UiStatePayload {
   state: UiState;
-  text?: string;     // last transcript (for the tooltip / "done" flash)
+  text?: string; // last transcript (for the tooltip / "done" flash)
   error?: string;
   ts: number;
 }
@@ -23,7 +26,9 @@ export function writeUiState(state: UiState, extra: { text?: string; error?: str
   const payload: UiStatePayload = { state, ...extra, ts: Date.now() };
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify(payload));
-  } catch { /* never let UI state writes break the flow */ }
+  } catch {
+    /* never let UI state writes break the flow */
+  }
 }
 
 export function readUiState(): UiStatePayload {

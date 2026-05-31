@@ -43,7 +43,9 @@ async function clipboardPaste(text: string, restore: boolean): Promise<void> {
 
   if (restore && previous !== null) {
     setTimeout(() => {
-      vscode.env.clipboard.writeText(previous).then(undefined, () => { /* noop */ });
+      vscode.env.clipboard.writeText(previous).then(undefined, () => {
+        /* noop */
+      });
     }, 400);
   }
 }
@@ -59,7 +61,9 @@ function detectOsTool(): OsTool {
       execSync(`command -v ${t}`, { stdio: "ignore" });
       osToolCache = t;
       return t;
-    } catch { /* not installed */ }
+    } catch {
+      /* not installed */
+    }
   }
   osToolCache = "none";
   return "none";
@@ -92,11 +96,29 @@ async function osLevelPaste(tool: Exclude<OsTool, "none">): Promise<void> {
 }
 
 const TERMINAL_WINDOW_CLASSES = [
-  "gnome-terminal", "konsole", "xterm", "alacritty", "kitty",
-  "terminator", "tilix", "xfce4-terminal", "mate-terminal",
-  "lxterminal", "lxterm", "urxvt", "rxvt", "termite", "wezterm",
-  "foot", "hyper", "st-256color", "guake", "yakuake", "tabby",
-  "warp", "cool-retro-term",
+  "gnome-terminal",
+  "konsole",
+  "xterm",
+  "alacritty",
+  "kitty",
+  "terminator",
+  "tilix",
+  "xfce4-terminal",
+  "mate-terminal",
+  "lxterminal",
+  "lxterm",
+  "urxvt",
+  "rxvt",
+  "termite",
+  "wezterm",
+  "foot",
+  "hyper",
+  "st-256color",
+  "guake",
+  "yakuake",
+  "tabby",
+  "warp",
+  "cool-retro-term",
 ];
 
 function isActiveWindowTerminal(): boolean {
@@ -117,19 +139,23 @@ function isActiveWindowTerminal(): boolean {
 async function vscodePasteFallback(): Promise<void> {
   try {
     await vscode.commands.executeCommand("editor.action.clipboardPasteAction");
-  } catch { /* widget didn't accept it */ }
+  } catch {
+    /* widget didn't accept it */
+  }
   if (!warnedNoTool) {
     warnedNoTool = true;
-    void vscode.window.showWarningMessage(
-      "voice-coder: install xdotool (X11) or ydotool/wtype (Wayland) so pasting works in Copilot Chat, terminals, and other webviews — not just the editor.",
-      "How to install",
-    ).then((choice) => {
-      if (choice === "How to install") {
-        void vscode.env.openExternal(
-          vscode.Uri.parse("https://github.com/jordansissel/xdotool#installing"),
-        );
-      }
-    });
+    void vscode.window
+      .showWarningMessage(
+        "voice-coder: install xdotool (X11) or ydotool/wtype (Wayland) so pasting works in Copilot Chat, terminals, and other webviews — not just the editor.",
+        "How to install",
+      )
+      .then((choice) => {
+        if (choice === "How to install") {
+          void vscode.env.openExternal(
+            vscode.Uri.parse("https://github.com/jordansissel/xdotool#installing"),
+          );
+        }
+      });
   }
 }
 

@@ -30,7 +30,9 @@ export async function transcribe(opts: TranscribeOptions): Promise<string> {
           // Saying "transcribe" here causes Gemini to preserve the source
           // language and silently override the system instruction's
           // translation directive.
-          { text: "Process the attached audio per the system instruction. Output only the resulting text, nothing else." },
+          {
+            text: "Process the attached audio per the system instruction. Output only the resulting text, nothing else.",
+          },
           { inlineData: { mimeType: "audio/wav", data: audioBase64 } },
         ],
       },

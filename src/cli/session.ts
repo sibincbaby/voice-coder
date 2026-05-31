@@ -21,6 +21,7 @@ import type { Profile } from "./profiles";
 import { writeClipboard, firePaste } from "./inject";
 import { appendHistory, log } from "./store";
 import { writeUiState } from "./uistate";
+import { wavLevel, silencePeakThreshold } from "./audio";
 
 export const LOCKFILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.lock`);
 
@@ -29,7 +30,7 @@ interface LockState {
   wavPath: string;
   startedAt: number;
   tool: AudioTool;
-  profileId?: string;   // optional for backward compat with pre-profile lockfiles
+  profileId?: string; // optional for backward compat with pre-profile lockfiles
 }
 
 export interface SessionStatus {
@@ -45,37 +46,7 @@ export interface TranscribeResult {
   durationMs: number;
   audioBytes: number;
   paste: "fired" | "skipped" | "unavailable";
-  silent?: boolean;   // true when we skipped Gemini because the audio was silent
-}
-
-// Peak 16-bit amplitude below which we treat the recording as "no speech".
-// Full scale is 32767. Room tone / muted mic peaks in the low hundreds;
-// real speech peaks in the thousands. 500 (~1.5% FS) reliably separates them.
-// Override with VOICE_CODER_SILENCE_PEAK if a quiet mic needs tuning.
-const SILENCE_PEAK = parseInt(process.env.VOICE_CODER_SILENCE_PEAK ?? "500", 10);
-
-/** Measure peak + RMS amplitude of a 16-bit PCM mono WAV. */
-function wavLevel(wavPath: string): { peak: number; rms: number; samples: number } {
-  const buf = fs.readFileSync(wavPath);
-  // Locate the 'data' chunk (don't assume a fixed 44-byte header).
-  let off = 12, dataOff = -1, dataLen = 0;
-  while (off + 8 <= buf.length) {
-    const id = buf.toString("ascii", off, off + 4);
-    const size = buf.readUInt32LE(off + 4);
-    if (id === "data") { dataOff = off + 8; dataLen = size; break; }
-    off += 8 + size + (size & 1);
-  }
-  if (dataOff < 0) { dataOff = 44; dataLen = buf.length - 44; }
-  dataLen = Math.max(0, Math.min(dataLen, buf.length - dataOff));
-  const n = Math.floor(dataLen / 2);
-  let peak = 0, sumSq = 0;
-  for (let i = 0; i < n; i++) {
-    const s = buf.readInt16LE(dataOff + i * 2);
-    const a = s < 0 ? -s : s;
-    if (a > peak) peak = a;
-    sumSq += s * s;
-  }
-  return { peak, rms: n ? Math.sqrt(sumSq / n) : 0, samples: n };
+  silent?: boolean; // true when we skipped Gemini because the audio was silent
 }
 
 // ----- public API -----
@@ -111,10 +82,19 @@ export function startRecording(): LockState & { profileId: string; profileName: 
 
   // Lock the profile in at start time, so even if the user switches profiles
   // mid-recording the transcription uses the same one that started it.
-  const state: LockState = { pid: proc.pid, wavPath, startedAt: Date.now(), tool, profileId: profile.id };
+  const state: LockState = {
+    pid: proc.pid,
+    wavPath,
+    startedAt: Date.now(),
+    tool,
+    profileId: profile.id,
+  };
   fs.writeFileSync(LOCKFILE, JSON.stringify(state));
   writeUiState("recording");
-  log("info", `Started recording (profile=${profile.name}, pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
+  log(
+    "info",
+    `Started recording (profile=${profile.name}, pid=${proc.pid}, tool=${tool}, wav=${wavPath})`,
+  );
   scheduleWatchdog(proc.pid, profile.maxRecordingSeconds);
   return { ...state, profileId: profile.id, profileName: profile.name };
 }
@@ -143,7 +123,11 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
     throw new Error("No Gemini API key. Set one in the UI or run `voice-coder set-key`.");
   }
 
-  try { process.kill(state.pid, "SIGINT"); } catch { /* already gone */ }
+  try {
+    process.kill(state.pid, "SIGINT");
+  } catch {
+    /* already gone */
+  }
   await waitForExit(state.pid, 3000);
   fs.rmSync(LOCKFILE, { force: true });
   writeUiState("transcribing");
@@ -159,11 +143,15 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   // Silence guard: if the recording has no real speech, DON'T call Gemini —
   // on near-empty audio the model hallucinates plausible text (often echoing
   // glossary terms from the system instruction). Skip and return silently.
-  const level = wavLevel(state.wavPath);
-  if (level.peak < SILENCE_PEAK) {
+  const threshold = silencePeakThreshold();
+  const level = wavLevel(fs.readFileSync(state.wavPath));
+  if (level.peak < threshold) {
     AudioRecorder.cleanup(state.wavPath);
     writeUiState("idle");
-    log("info", `Skipped: silent audio (peak=${level.peak}, rms=${Math.round(level.rms)}, threshold=${SILENCE_PEAK})`);
+    log(
+      "info",
+      `Skipped: silent audio (peak=${level.peak}, rms=${Math.round(level.rms)}, threshold=${threshold})`,
+    );
     return { text: "", durationMs: 0, audioBytes, paste: "skipped", silent: true };
   }
 
@@ -196,7 +184,10 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   }
 
   const durationMs = Date.now() - t0;
-  log("info", `Transcribed (profile=${profile.name}, model=${profile.model}, ${audioBytes}B, ${durationMs}ms, ${text.length} chars)`);
+  log(
+    "info",
+    `Transcribed (profile=${profile.name}, model=${profile.model}, ${audioBytes}B, ${durationMs}ms, ${text.length} chars)`,
+  );
   appendHistory({
     ts: new Date().toISOString(),
     model: profile.model,
@@ -243,7 +234,9 @@ function readLock(): LockState | null {
   try {
     const state = JSON.parse(fs.readFileSync(LOCKFILE, "utf8")) as LockState;
     // Stale lockfile — process is gone. Clean up.
-    try { process.kill(state.pid, 0); } catch {
+    try {
+      process.kill(state.pid, 0);
+    } catch {
       fs.rmSync(LOCKFILE, { force: true });
       AudioRecorder.cleanup(state.wavPath);
       return null;
@@ -257,14 +250,28 @@ function readLock(): LockState | null {
 
 function cleanupAfterStop(pid: number, wavPath: string, killProc: boolean): void {
   if (killProc) {
-    try { process.kill(pid, "SIGINT"); } catch { /* noop */ }
-    setTimeout(() => { try { process.kill(pid, "SIGKILL"); } catch { /* noop */ } }, 800).unref();
+    try {
+      process.kill(pid, "SIGINT");
+    } catch {
+      /* noop */
+    }
+    setTimeout(() => {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        /* noop */
+      }
+    }, 800).unref();
   }
   fs.rmSync(LOCKFILE, { force: true });
   AudioRecorder.cleanup(wavPath);
 }
 
-function buildRecorderCommand(tool: AudioTool, sr: number, out: string): { bin: string; args: string[] } {
+function buildRecorderCommand(
+  tool: AudioTool,
+  sr: number,
+  out: string,
+): { bin: string; args: string[] } {
   const r = String(sr);
   switch (tool) {
     case "arecord":
@@ -272,7 +279,23 @@ function buildRecorderCommand(tool: AudioTool, sr: number, out: string): { bin: 
     case "sox":
       return { bin: "sox", args: ["-q", "-d", "-r", r, "-c", "1", "-b", "16", out] };
     case "ffmpeg":
-      return { bin: "ffmpeg", args: ["-loglevel", "error", "-f", "alsa", "-i", "default", "-ar", r, "-ac", "1", "-y", out] };
+      return {
+        bin: "ffmpeg",
+        args: [
+          "-loglevel",
+          "error",
+          "-f",
+          "alsa",
+          "-i",
+          "default",
+          "-ar",
+          r,
+          "-ac",
+          "1",
+          "-y",
+          out,
+        ],
+      };
   }
 }
 
@@ -285,7 +308,11 @@ function scheduleWatchdog(pid: number, maxSeconds: number): void {
 async function waitForExit(pid: number, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try { process.kill(pid, 0); } catch { return; }
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return;
+    }
     await new Promise((r) => setTimeout(r, 50));
   }
 }

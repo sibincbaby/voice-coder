@@ -39,8 +39,12 @@ export function configDir(): string {
   return path.join(xdg && xdg.length > 0 ? xdg : path.join(os.homedir(), ".config"), "voice-coder");
 }
 
-export function configFile(): string { return path.join(configDir(), "config.json"); }
-export function apiKeyFile(): string { return path.join(configDir(), "api-key"); }
+export function configFile(): string {
+  return path.join(configDir(), "config.json");
+}
+export function apiKeyFile(): string {
+  return path.join(configDir(), "api-key");
+}
 
 export function ensureConfigDir(): void {
   const dir = configDir();
@@ -62,7 +66,7 @@ export function loadConfig(): CliConfig {
   } catch (err) {
     throw new Error(
       `Could not parse ${file}: ${(err as Error).message}\n` +
-      `Fix the JSON syntax or delete the file to regenerate defaults.`,
+        `Fix the JSON syntax or delete the file to regenerate defaults.`,
     );
   }
 }
@@ -72,8 +76,13 @@ export function saveConfig(partial: Partial<CliConfig>): void {
   const current = loadConfig();
   // Whitelist keys so callers can't write arbitrary fields
   const allowed: (keyof CliConfig)[] = [
-    "model", "systemInstruction", "audioTool", "sampleRate",
-    "maxRecordingSeconds", "autoPaste", "notify",
+    "model",
+    "systemInstruction",
+    "audioTool",
+    "sampleRate",
+    "maxRecordingSeconds",
+    "autoPaste",
+    "notify",
   ];
   const next: Record<string, unknown> = { ...current };
   for (const k of allowed) {

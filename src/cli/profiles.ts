@@ -7,7 +7,7 @@ import type { AudioToolPref } from "../recorder";
 export interface Profile {
   id: string;
   name: string;
-  color: string;              // hex tint for the tile
+  color: string; // hex tint for the tile
   model: string;
   systemInstruction: string;
   audioTool: AudioToolPref;
@@ -22,7 +22,9 @@ interface ProfilesFile {
   profiles: Profile[];
 }
 
-function profilesFile(): string { return path.join(configDir(), "profiles.json"); }
+function profilesFile(): string {
+  return path.join(configDir(), "profiles.json");
+}
 
 const PALETTE = [
   "#7aa7ff", // blue
@@ -58,7 +60,7 @@ function loadFile(): ProfilesFile {
   } catch (err) {
     throw new Error(
       `Could not parse ${f}: ${(err as Error).message}\n` +
-      `Fix the JSON syntax or delete the file to regenerate from defaults.`,
+        `Fix the JSON syntax or delete the file to regenerate from defaults.`,
     );
   }
 }
@@ -150,7 +152,11 @@ export function update(id: string, patch: Partial<Profile>): Profile {
   const state = loadFile();
   const idx = state.profiles.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error(`No profile with id '${id}'.`);
-  const next: Profile = { ...state.profiles[idx], ...stripUndefined(patch), id: state.profiles[idx].id };
+  const next: Profile = {
+    ...state.profiles[idx],
+    ...stripUndefined(patch),
+    id: state.profiles[idx].id,
+  };
   state.profiles[idx] = next;
   saveFile(state);
   return next;

@@ -49,7 +49,9 @@ export function deactivate(): void {
   abortController?.abort();
   if (recorder) {
     // best-effort cleanup; we can't await in deactivate
-    recorder.stop().catch(() => { /* noop */ });
+    recorder.stop().catch(() => {
+      /* noop */
+    });
   }
   statusBar?.dispose();
 }
@@ -117,7 +119,9 @@ async function cancelRecording(): Promise<void> {
   try {
     const { path } = await r.stop();
     AudioRecorder.cleanup(path);
-  } catch { /* recorder was already torn down */ }
+  } catch {
+    /* recorder was already torn down */
+  }
   void vscode.window.setStatusBarMessage("Voice Coder: recording cancelled.", 2000);
 }
 

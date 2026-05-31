@@ -75,7 +75,12 @@
         },
         "voiceCoder.audioTool": {
           "type": "string",
-          "enum": ["auto", "arecord", "sox", "ffmpeg"],
+          "enum": [
+            "auto",
+            "arecord",
+            "sox",
+            "ffmpeg"
+          ],
           "default": "auto",
           "description": "Audio recorder backend. 'auto' picks the first available of arecord, sox, ffmpeg."
         },
@@ -86,7 +91,10 @@
         },
         "voiceCoder.injectionMethod": {
           "type": "string",
-          "enum": ["clipboard-paste", "type-command"],
+          "enum": [
+            "clipboard-paste",
+            "type-command"
+          ],
           "default": "clipboard-paste",
           "description": "How transcribed text is inserted. 'clipboard-paste' works in webviews (Copilot Chat) and terminals; 'type-command' only works in the editor."
         },
@@ -110,6 +118,14 @@
     "compile:cli": "esbuild src/cli/main.ts --bundle --outfile=out/cli.js --platform=node --format=cjs --target=node20 --minify --banner:js='#!/usr/bin/env node' && chmod +x out/cli.js",
     "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --sourcemap --watch",
     "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm run type-check && pnpm run test && pnpm run compile",
     "package": "pnpm run compile:extension && vsce package --no-dependencies",
     "install:cli": "pnpm run compile:cli && bash scripts/install-cli.sh"
   },
@@ -117,10 +133,17 @@
     "@google/genai": "^1.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "esbuild": "^0.24.0",
-    "typescript": "^5.5.0"
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.1.0"
   }
 }

@@ -6,11 +6,21 @@ import * as os from "node:os";
 
 import { pasteToolName } from "./inject";
 import {
-  loadConfig, loadApiKey, saveApiKey, clearApiKey, configFile, apiKeyFile, configDir,
+  loadConfig,
+  loadApiKey,
+  saveApiKey,
+  clearApiKey,
+  configFile,
+  apiKeyFile,
+  configDir,
   type CliConfig,
 } from "./config";
 import {
-  isRecording, startRecording, stopAndTranscribe, cancelRecording, getStatus,
+  isRecording,
+  startRecording,
+  stopAndTranscribe,
+  cancelRecording,
+  getStatus,
 } from "./session";
 import { isTrayRunning, STATE_FILE, TRAY_PIDFILE } from "./uistate";
 
@@ -20,20 +30,31 @@ async function main(argv: string[]): Promise<number> {
   const [cmd = "toggle", ...rest] = argv;
   try {
     switch (cmd) {
-      case "toggle": return await cmdToggle(rest);
-      case "record": return cmdRecord();
-      case "stop":   return await cmdStop(rest);
-      case "cancel": return cmdCancel();
-      case "status": return cmdStatus();
-      case "set-key": return await cmdSetKey();
-      case "clear-key": return cmdClearKey();
-      case "config": return cmdConfig();
+      case "toggle":
+        return await cmdToggle(rest);
+      case "record":
+        return cmdRecord();
+      case "stop":
+        return await cmdStop(rest);
+      case "cancel":
+        return cmdCancel();
+      case "status":
+        return cmdStatus();
+      case "set-key":
+        return await cmdSetKey();
+      case "clear-key":
+        return cmdClearKey();
+      case "config":
+        return cmdConfig();
       case "ui":
-      case "dashboard": return await cmdUi(rest);
-      case "tray": return cmdTray(rest);
+      case "dashboard":
+        return await cmdUi(rest);
+      case "tray":
+        return cmdTray(rest);
       case "help":
       case "-h":
-      case "--help": return cmdHelp();
+      case "--help":
+        return cmdHelp();
       default:
         console.error(`Unknown command: ${cmd}\n`);
         return cmdHelp();
@@ -146,11 +167,13 @@ async function cmdUi(rest: string[]): Promise<number> {
         console.log(`Voice Coder UI is already running at ${url}`);
         if (!noOpen) {
           if (appMode) openInAppMode(url);
-          else         openBrowser(url);
+          else openBrowser(url);
         }
         return 0;
       }
-      throw new Error(`Port ${port} is in use by a non-Voice-Coder process. Try: voice-coder ui --port 7778`);
+      throw new Error(
+        `Port ${port} is in use by a non-Voice-Coder process. Try: voice-coder ui --port 7778`,
+      );
     }
     throw err;
   }
@@ -160,7 +183,7 @@ async function cmdUi(rest: string[]): Promise<number> {
   notify("Voice Coder", `UI: ${handle.url}`, "low");
   if (!noOpen) {
     if (appMode) openInAppMode(handle.url);
-    else         openBrowser(handle.url);
+    else openBrowser(handle.url);
   }
 
   return new Promise<number>((resolve) => {
@@ -170,7 +193,7 @@ async function cmdUi(rest: string[]): Promise<number> {
       closing = true;
       console.log("\nShutting down…");
       notify("Voice Coder", "Server stopped.", "low");
-      handle.close().finally(() => resolve(0));
+      void handle.close().finally(() => resolve(0));
     };
     // Lets the /api/shutdown route end the process the same way Ctrl+C does
     triggerShutdown = shutdown;
@@ -263,15 +286,26 @@ function openBrowser(url: string): void {
 function openInAppMode(url: string): void {
   // Try Chrome / Chromium / Brave in --app= mode for a chromeless window
   // that feels native. If none are installed, fall back to xdg-open.
-  const candidates = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser"];
+  const candidates = [
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+    "brave-browser",
+  ];
   for (const bin of candidates) {
     try {
       const out = spawnSync("command", ["-v", bin], { stdio: "ignore", shell: true });
       if (out.status === 0) {
-        spawn(bin, [`--app=${url}`, "--new-window", "--no-first-run"], { stdio: "ignore", detached: true }).unref();
+        spawn(bin, [`--app=${url}`, "--new-window", "--no-first-run"], {
+          stdio: "ignore",
+          detached: true,
+        }).unref();
         return;
       }
-    } catch { /* try next */ }
+    } catch {
+      /* try next */
+    }
   }
   // Fallback
   console.log("(No Chrome/Chromium found for --app mode; opening default browser instead.)");
@@ -326,10 +360,17 @@ function preview(s: string): string {
   return oneLine.length > 120 ? oneLine.slice(0, 120) + "…" : oneLine;
 }
 
-const NOTIFY_ID_FILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.notify-id`);
+const NOTIFY_ID_FILE = path.join(
+  os.tmpdir(),
+  `voice-coder-${process.env.USER ?? "user"}.notify-id`,
+);
 const URGENCY_TO_INT: Record<string, number> = { low: 0, normal: 1, critical: 2 };
 
-function notify(title: string, body: string, urgency: "low" | "normal" | "critical" = "normal"): void {
+function notify(
+  title: string,
+  body: string,
+  urgency: "low" | "normal" | "critical" = "normal",
+): void {
   const cfg = safeLoadConfigForNotify();
   if (cfg && !cfg.notify) return;
   // If the tray indicator is running, it IS the status display — skip the
@@ -343,7 +384,7 @@ function notify(title: string, body: string, urgency: "low" | "normal" | "critic
   // ship) doesn't expose --replace-id, so we talk to the notification
   // daemon directly over DBus via gdbus. Falls back to plain notify-send
   // if gdbus isn't installed (no replace, but still notifies).
-  let prevId = readPrevNotifyId();
+  const prevId = readPrevNotifyId();
 
   const id = sendViaDbus(title, body, urgency, prevId);
   if (id !== null) {
@@ -352,32 +393,39 @@ function notify(title: string, body: string, urgency: "low" | "normal" | "critic
   }
   // Fallback: best-effort, will stack
   try {
-    spawnSync("notify-send", [
-      "--app-name=voice-coder",
-      `--urgency=${urgency}`,
-      "--expire-time=4000",
-      title, body,
-    ], { stdio: "ignore" });
-  } catch { /* notify-send missing too — silently drop */ }
+    spawnSync(
+      "notify-send",
+      ["--app-name=voice-coder", `--urgency=${urgency}`, "--expire-time=4000", title, body],
+      { stdio: "ignore" },
+    );
+  } catch {
+    /* notify-send missing too — silently drop */
+  }
 }
 
-function sendViaDbus(title: string, body: string, urgency: string, replaceId: number): number | null {
+function sendViaDbus(
+  title: string,
+  body: string,
+  urgency: string,
+  replaceId: number,
+): number | null {
   // Hints dict: just urgency. GDBus signature: a{sv}, formatted as
   // {"urgency": <byte 0|1|2>}.
   const hints = `{"urgency": <byte ${URGENCY_TO_INT[urgency] ?? 1}>}`;
   const args = [
-    "call", "--session",
+    "call",
+    "--session",
     "--dest=org.freedesktop.Notifications",
     "--object-path=/org/freedesktop/Notifications",
     "--method=org.freedesktop.Notifications.Notify",
-    "voice-coder",            // app_name
-    String(replaceId),        // replaces_id (0 = new)
-    "",                       // app_icon
+    "voice-coder", // app_name
+    String(replaceId), // replaces_id (0 = new)
+    "", // app_icon
     title,
     body,
-    "[]",                     // actions
+    "[]", // actions
     hints,
-    "4000",                   // expire_timeout (ms)
+    "4000", // expire_timeout (ms)
   ];
   try {
     const r = spawnSync("gdbus", args, { encoding: "utf8", timeout: 1000 });
@@ -396,19 +444,33 @@ function readPrevNotifyId(): number {
     const raw = fs.readFileSync(NOTIFY_ID_FILE, "utf8").trim();
     const n = parseInt(raw, 10);
     return Number.isFinite(n) && n > 0 ? n : 0;
-  } catch { return 0; }
+  } catch {
+    return 0;
+  }
 }
 
 function writePrevNotifyId(id: number): void {
-  try { fs.writeFileSync(NOTIFY_ID_FILE, String(id)); } catch { /* ignore */ }
+  try {
+    fs.writeFileSync(NOTIFY_ID_FILE, String(id));
+  } catch {
+    /* ignore */
+  }
 }
 
 function safeLoadConfigForNotify(): CliConfig | null {
-  try { return loadConfig(); } catch { return null; }
+  try {
+    return loadConfig();
+  } catch {
+    return null;
+  }
 }
 
 function promptPassword(label: string): Promise<string> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+  });
   return new Promise((resolve) => {
     process.stdout.write(label);
     let buf = "";
@@ -423,7 +485,8 @@ function promptPassword(label: string): Promise<string> {
           resolve(buf);
           return;
         }
-        if (ch === "\x03") { // Ctrl-C
+        if (ch === "\x03") {
+          // Ctrl-C
           process.stdout.write("\n");
           process.exit(130);
         }
@@ -444,7 +507,9 @@ function readAllStdin(): Promise<string> {
   return new Promise((resolve, reject) => {
     let buf = "";
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk: string) => { buf += chunk; });
+    process.stdin.on("data", (chunk: string) => {
+      buf += chunk;
+    });
     process.stdin.on("end", () => resolve(buf));
     process.stdin.on("error", reject);
   });
@@ -454,5 +519,8 @@ function readAllStdin(): Promise<string> {
 
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),
-  (err) => { console.error(err); process.exit(1); },
+  (err) => {
+    console.error(err);
+    process.exit(1);
+  },
 );

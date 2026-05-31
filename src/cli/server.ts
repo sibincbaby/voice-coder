@@ -2,18 +2,33 @@ import * as http from "node:http";
 import { GoogleGenAI } from "@google/genai";
 
 import {
-  loadConfig, saveConfig, loadApiKey, saveApiKey, clearApiKey,
-  configDir, configFile, apiKeyFile,
+  loadConfig,
+  saveConfig,
+  loadApiKey,
+  saveApiKey,
+  clearApiKey,
+  configDir,
+  configFile,
+  apiKeyFile,
 } from "./config";
 import {
-  listProfiles, activate, create, update as updateProfile, remove as removeProfile,
+  listProfiles,
+  activate,
+  create,
+  update as updateProfile,
+  remove as removeProfile,
   type Profile,
 } from "./profiles";
 import { readHistory, clearHistory, readLogLines, clearLogs } from "./store";
 import { pasteToolName } from "./inject";
+import { maskKey } from "./secret";
 import { renderUi } from "./ui";
 import {
-  isRecording, startRecording, stopAndTranscribe, cancelRecording, getStatus,
+  isRecording,
+  startRecording,
+  stopAndTranscribe,
+  cancelRecording,
+  getStatus,
 } from "./session";
 
 export interface ServerHandle {
@@ -22,7 +37,9 @@ export interface ServerHandle {
   close: () => Promise<void>;
 }
 
-export function startServer(opts: { host?: string; port?: number; onShutdown?: () => void } = {}): Promise<ServerHandle> {
+export function startServer(
+  opts: { host?: string; port?: number; onShutdown?: () => void } = {},
+): Promise<ServerHandle> {
   const host = opts.host ?? "127.0.0.1";
   const port = opts.port ?? 7777;
 
@@ -49,7 +66,11 @@ export function startServer(opts: { host?: string; port?: number; onShutdown?: (
 
 // ---------- routes ----------
 
-async function handle(req: http.IncomingMessage, res: http.ServerResponse, onShutdown?: () => void): Promise<void> {
+async function handle(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  onShutdown?: () => void,
+): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const { pathname } = url;
   const method = req.method ?? "GET";
@@ -157,7 +178,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, onShu
     }
   }
   if (pathname === "/api/record/stop" && method === "POST") {
-    const body = await readJson<{ paste?: boolean }>(req).catch(() => ({} as { paste?: boolean }));
+    const body = await readJson<{ paste?: boolean }>(req).catch(() => ({}) as { paste?: boolean });
     // Default to skipPaste from UI — user's focus is in the browser, not in
     // wherever they want the text. Clipboard write still happens so they can
     // paste it themselves.
@@ -221,15 +242,14 @@ function readJson<T = unknown>(req: http.IncomingMessage): Promise<T> {
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw) return resolve({} as T);
-      try { resolve(JSON.parse(raw) as T); } catch (err) { reject(err); }
+      try {
+        resolve(JSON.parse(raw) as T);
+      } catch (err) {
+        reject(err);
+      }
     });
     req.on("error", reject);
   });
-}
-
-function maskKey(k: string): string {
-  if (k.length <= 8) return "•".repeat(k.length);
-  return k.slice(0, 4) + "•".repeat(Math.max(0, k.length - 8)) + k.slice(-4);
 }
 
 async function testConnection(res: http.ServerResponse): Promise<void> {

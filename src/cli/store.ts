@@ -6,19 +6,25 @@ const MAX_HISTORY_ENTRIES = 500;
 const MAX_LOG_BYTES = 1_000_000; // ~1 MB before rotation
 
 export interface HistoryEntry {
-  ts: string;            // ISO 8601
+  ts: string; // ISO 8601
   model: string;
   text: string;
-  durationMs: number;    // wall-clock for the Gemini call
+  durationMs: number; // wall-clock for the Gemini call
   audioBytes: number;
   error?: string;
   profileId?: string;
   profileName?: string;
 }
 
-function historyFile(): string { return path.join(configDir(), "history.jsonl"); }
-function logFile(): string     { return path.join(configDir(), "voice-coder.log"); }
-function logOldFile(): string  { return path.join(configDir(), "voice-coder.log.1"); }
+function historyFile(): string {
+  return path.join(configDir(), "history.jsonl");
+}
+function logFile(): string {
+  return path.join(configDir(), "voice-coder.log");
+}
+function logOldFile(): string {
+  return path.join(configDir(), "voice-coder.log.1");
+}
 
 // ----------------- history -----------------
 
@@ -34,11 +40,18 @@ export function readHistory(limit = 200): HistoryEntry[] {
   const f = historyFile();
   if (!fs.existsSync(f)) return [];
   // Read full file (we cap entries at 500) and parse JSONL
-  const lines = fs.readFileSync(f, "utf8").split("\n").filter((l) => l.length > 0);
+  const lines = fs
+    .readFileSync(f, "utf8")
+    .split("\n")
+    .filter((l) => l.length > 0);
   const out: HistoryEntry[] = [];
   // Take the last `limit` lines from the end
   for (let i = Math.max(0, lines.length - limit); i < lines.length; i++) {
-    try { out.push(JSON.parse(lines[i]) as HistoryEntry); } catch { /* skip malformed */ }
+    try {
+      out.push(JSON.parse(lines[i]) as HistoryEntry);
+    } catch {
+      /* skip malformed */
+    }
   }
   return out.reverse(); // newest first
 }
@@ -51,7 +64,10 @@ export function clearHistory(): void {
 function rotateHistoryIfNeeded(): void {
   const f = historyFile();
   if (!fs.existsSync(f)) return;
-  const lines = fs.readFileSync(f, "utf8").split("\n").filter((l) => l.length > 0);
+  const lines = fs
+    .readFileSync(f, "utf8")
+    .split("\n")
+    .filter((l) => l.length > 0);
   if (lines.length <= MAX_HISTORY_ENTRIES) return;
   // Keep only the newest MAX entries
   const trimmed = lines.slice(-MAX_HISTORY_ENTRIES).join("\n") + "\n";
@@ -68,7 +84,9 @@ export function log(level: LogLevel, msg: string): void {
   try {
     fs.appendFileSync(logFile(), line);
     rotateLogIfNeeded();
-  } catch { /* logging must never throw */ }
+  } catch {
+    /* logging must never throw */
+  }
   if (level === "error") {
     process.stderr.write(line);
   }
@@ -95,5 +113,7 @@ function rotateLogIfNeeded(): void {
   // Move current → .1 (overwriting any older .1), start a fresh log
   try {
     fs.renameSync(f, logOldFile());
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }

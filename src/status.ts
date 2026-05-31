@@ -21,7 +21,8 @@ export class StatusBar {
         break;
       case "recording":
         this.item.text = "$(record) Recording…";
-        this.item.tooltip = "Voice Coder: recording\n• Ctrl+Alt+V — stop and transcribe\n• Esc or Ctrl+Alt+X — cancel (discard)";
+        this.item.tooltip =
+          "Voice Coder: recording\n• Ctrl+Alt+V — stop and transcribe\n• Esc or Ctrl+Alt+X — cancel (discard)";
         this.item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
         break;
       case "transcribing":

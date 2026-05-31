@@ -85,10 +85,18 @@ export class AudioRecorder {
         return {
           cmd: "ffmpeg",
           args: [
-            "-loglevel", "error",
-            "-f", "alsa", "-i", "default",
-            "-ar", sr, "-ac", "1",
-            "-y", outPath,
+            "-loglevel",
+            "error",
+            "-f",
+            "alsa",
+            "-i",
+            "default",
+            "-ar",
+            sr,
+            "-ac",
+            "1",
+            "-y",
+            outPath,
           ],
         };
     }
@@ -131,10 +139,18 @@ export class AudioRecorder {
   private kill() {
     if (!this.proc) return;
     // SIGINT triggers graceful WAV finalization for arecord, sox, and ffmpeg
-    try { this.proc.kill("SIGINT"); } catch { /* noop */ }
+    try {
+      this.proc.kill("SIGINT");
+    } catch {
+      /* noop */
+    }
   }
 
   static cleanup(filePath: string): void {
-    try { fs.unlinkSync(filePath); } catch { /* noop */ }
+    try {
+      fs.unlinkSync(filePath);
+    } catch {
+      /* noop */
+    }
   }
 }
