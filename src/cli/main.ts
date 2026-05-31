@@ -66,6 +66,11 @@ async function cmdStop(rest: string[]): Promise<number> {
   const result = await stopAndTranscribe({ paste: !wantCopyOnly });
   const { text, paste } = result;
 
+  if (result.silent) {
+    notify("Voice Coder", "No speech detected.", "low");
+    return 0;
+  }
+
   if (paste === "fired") {
     notify("Voice Coder", `✓ ${preview(text)}`, "low");
   } else if (paste === "unavailable") {

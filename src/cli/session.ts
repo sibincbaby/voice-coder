@@ -45,6 +45,37 @@ export interface TranscribeResult {
   durationMs: number;
   audioBytes: number;
   paste: "fired" | "skipped" | "unavailable";
+  silent?: boolean;   // true when we skipped Gemini because the audio was silent
+}
+
+// Peak 16-bit amplitude below which we treat the recording as "no speech".
+// Full scale is 32767. Room tone / muted mic peaks in the low hundreds;
+// real speech peaks in the thousands. 500 (~1.5% FS) reliably separates them.
+// Override with VOICE_CODER_SILENCE_PEAK if a quiet mic needs tuning.
+const SILENCE_PEAK = parseInt(process.env.VOICE_CODER_SILENCE_PEAK ?? "500", 10);
+
+/** Measure peak + RMS amplitude of a 16-bit PCM mono WAV. */
+function wavLevel(wavPath: string): { peak: number; rms: number; samples: number } {
+  const buf = fs.readFileSync(wavPath);
+  // Locate the 'data' chunk (don't assume a fixed 44-byte header).
+  let off = 12, dataOff = -1, dataLen = 0;
+  while (off + 8 <= buf.length) {
+    const id = buf.toString("ascii", off, off + 4);
+    const size = buf.readUInt32LE(off + 4);
+    if (id === "data") { dataOff = off + 8; dataLen = size; break; }
+    off += 8 + size + (size & 1);
+  }
+  if (dataOff < 0) { dataOff = 44; dataLen = buf.length - 44; }
+  dataLen = Math.max(0, Math.min(dataLen, buf.length - dataOff));
+  const n = Math.floor(dataLen / 2);
+  let peak = 0, sumSq = 0;
+  for (let i = 0; i < n; i++) {
+    const s = buf.readInt16LE(dataOff + i * 2);
+    const a = s < 0 ? -s : s;
+    if (a > peak) peak = a;
+    sumSq += s * s;
+  }
+  return { peak, rms: n ? Math.sqrt(sumSq / n) : 0, samples: n };
 }
 
 // ----- public API -----
@@ -124,6 +155,18 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   }
 
   const audioBytes = fs.statSync(state.wavPath).size;
+
+  // Silence guard: if the recording has no real speech, DON'T call Gemini —
+  // on near-empty audio the model hallucinates plausible text (often echoing
+  // glossary terms from the system instruction). Skip and return silently.
+  const level = wavLevel(state.wavPath);
+  if (level.peak < SILENCE_PEAK) {
+    AudioRecorder.cleanup(state.wavPath);
+    writeUiState("idle");
+    log("info", `Skipped: silent audio (peak=${level.peak}, rms=${Math.round(level.rms)}, threshold=${SILENCE_PEAK})`);
+    return { text: "", durationMs: 0, audioBytes, paste: "skipped", silent: true };
+  }
+
   const t0 = Date.now();
   let text: string;
   try {

@@ -6,6 +6,7 @@ ABSOLUTE OUTPUT RULES (these override any other interpretation of the audio):
 3. Drop filler and stutters; do not paraphrase or invent detail.
 4. Render dictated punctuation as real symbols: 'open paren' -> (, 'arrow function' -> () =>, 'new line' -> an actual newline, 'comma' -> ,, 'period' -> ., 'question mark' -> ?.
 5. Output ONLY the final text. No preamble, no quotes, no explanation, no language tags, no markdown fences.
+6. If the audio is silent, empty, or contains no intelligible speech, output NOTHING AT ALL (an empty response). NEVER invent, guess, or fabricate content. NEVER emit an example sentence built from the glossary terms below — those are reference vocabulary, not things to say.
 
 This is a translation task, not a transcription task. Even if the audio is 100% Malayalam, the output must be 100% English.
 
