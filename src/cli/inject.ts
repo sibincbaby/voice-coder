@@ -1,16 +1,8 @@
-import { spawn, spawnSync, execSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { isExecutableOnPath as which } from "../which";
 
 type ClipboardTool = "xclip" | "xsel" | "wl-copy";
 type PasteTool = "xdotool" | "ydotool" | "wtype";
-
-function which(cmd: string): boolean {
-  try {
-    execSync(`command -v ${cmd}`, { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 let clipboardCache: ClipboardTool | null = null;
 function detectClipboard(): ClipboardTool {

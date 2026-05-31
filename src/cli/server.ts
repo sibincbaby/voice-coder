@@ -23,6 +23,7 @@ import { readHistory, clearHistory, readLogLines, clearLogs } from "./store";
 import { pasteToolName } from "./inject";
 import { maskKey } from "./secret";
 import { renderUi } from "./ui";
+import { generateToken, authorize } from "./auth";
 import {
   isRecording,
   startRecording,
@@ -42,9 +43,11 @@ export function startServer(
 ): Promise<ServerHandle> {
   const host = opts.host ?? "127.0.0.1";
   const port = opts.port ?? 7777;
+  // Per-process CSRF token, embedded in the served HTML and required on /api.
+  const token = generateToken();
 
   const server = http.createServer((req, res) => {
-    handle(req, res, opts.onShutdown).catch((err) => {
+    handle(req, res, token, opts.onShutdown).catch((err) => {
       console.error("[voice-coder ui] handler error:", err);
       sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
     });
@@ -69,19 +72,35 @@ export function startServer(
 async function handle(
   req: http.IncomingMessage,
   res: http.ServerResponse,
+  token: string,
   onShutdown?: () => void,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const { pathname } = url;
   const method = req.method ?? "GET";
 
-  // CORS for completeness — UI is served from the same origin so usually unused
   res.setHeader("Cache-Control", "no-store");
 
-  // Static page
+  // CSRF / cross-origin gate: everything under /api (except the health probe)
+  // requires the per-process token embedded in our HTML, plus a localhost Host.
+  const auth = authorize(
+    pathname,
+    { host: req.headers.host, token: req.headers["x-vc-token"] },
+    token,
+  );
+  if (!auth.ok) {
+    return sendJson(res, auth.status ?? 403, { error: auth.error ?? "Forbidden" });
+  }
+
+  // Tokenless liveness probe (used by `voice-coder ui` to detect an existing server).
+  if (pathname === "/api/health" && method === "GET") {
+    return sendJson(res, 200, { ok: true, name: "voice-coder" });
+  }
+
+  // Static page — inject the session token so the UI can authenticate its calls.
   if (pathname === "/" && method === "GET") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(renderUi());
+    res.end(renderUi(token));
     return;
   }
 

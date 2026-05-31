@@ -13,7 +13,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { randomUUID } from "node:crypto";
 
-import { AudioRecorder, type AudioTool } from "../recorder";
+import { AudioRecorder, buildRecorderCommand, type AudioTool } from "../recorder";
 import { transcribe } from "../transcriber";
 import { loadApiKey } from "./config";
 import { getActive as getActiveProfile, listProfiles } from "./profiles";
@@ -265,38 +265,6 @@ function cleanupAfterStop(pid: number, wavPath: string, killProc: boolean): void
   }
   fs.rmSync(LOCKFILE, { force: true });
   AudioRecorder.cleanup(wavPath);
-}
-
-function buildRecorderCommand(
-  tool: AudioTool,
-  sr: number,
-  out: string,
-): { bin: string; args: string[] } {
-  const r = String(sr);
-  switch (tool) {
-    case "arecord":
-      return { bin: "arecord", args: ["-q", "-f", "S16_LE", "-r", r, "-c", "1", "-t", "wav", out] };
-    case "sox":
-      return { bin: "sox", args: ["-q", "-d", "-r", r, "-c", "1", "-b", "16", out] };
-    case "ffmpeg":
-      return {
-        bin: "ffmpeg",
-        args: [
-          "-loglevel",
-          "error",
-          "-f",
-          "alsa",
-          "-i",
-          "default",
-          "-ar",
-          r,
-          "-ac",
-          "1",
-          "-y",
-          out,
-        ],
-      };
-  }
 }
 
 function scheduleWatchdog(pid: number, maxSeconds: number): void {

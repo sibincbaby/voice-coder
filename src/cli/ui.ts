@@ -1,11 +1,14 @@
-export function renderUi(): string {
-  return PAGE;
+export function renderUi(token: string): string {
+  // Embed the per-session CSRF token; the client reads it from the meta tag
+  // and sends it as X-VC-Token on every /api call.
+  return PAGE.replace("__VC_TOKEN__", token);
 }
 
 const PAGE = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="vc-token" content="__VC_TOKEN__">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voice Coder</title>
 <style>
@@ -635,8 +638,9 @@ const PAGE = `<!doctype html>
     toast._t = setTimeout(() => el.classList.remove("show"), 2200);
   }
 
+  const VC_TOKEN = document.querySelector('meta[name="vc-token"]')?.content || "";
   async function api(method, path, body, signal) {
-    const opts = { method, headers: {}, signal };
+    const opts = { method, headers: { "X-VC-Token": VC_TOKEN }, signal };
     if (body !== undefined) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);

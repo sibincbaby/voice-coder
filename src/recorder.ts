@@ -1,11 +1,52 @@
-import { spawn, ChildProcess, execSync } from "node:child_process";
+import { spawn, ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import { isExecutableOnPath } from "./which";
 
 export type AudioTool = "arecord" | "sox" | "ffmpeg";
 export type AudioToolPref = "auto" | AudioTool;
+
+/**
+ * Build the recorder command to capture 16-bit mono PCM WAV to `outPath`.
+ * Shared by AudioRecorder (the VS Code path) and the CLI session, which spawns
+ * its own detached recorder — keep this the single source of truth.
+ */
+export function buildRecorderCommand(
+  tool: AudioTool,
+  sampleRate: number,
+  outPath: string,
+): { bin: string; args: string[] } {
+  const sr = String(sampleRate);
+  switch (tool) {
+    case "arecord":
+      return {
+        bin: "arecord",
+        args: ["-q", "-f", "S16_LE", "-r", sr, "-c", "1", "-t", "wav", outPath],
+      };
+    case "sox":
+      return { bin: "sox", args: ["-q", "-d", "-r", sr, "-c", "1", "-b", "16", outPath] };
+    case "ffmpeg":
+      return {
+        bin: "ffmpeg",
+        args: [
+          "-loglevel",
+          "error",
+          "-f",
+          "alsa",
+          "-i",
+          "default",
+          "-ar",
+          sr,
+          "-ac",
+          "1",
+          "-y",
+          outPath,
+        ],
+      };
+  }
+}
 
 export class AudioRecorder {
   private proc: ChildProcess | null = null;
@@ -36,12 +77,7 @@ export class AudioRecorder {
   }
 
   private static isAvailable(tool: AudioTool): boolean {
-    try {
-      execSync(`command -v ${tool}`, { stdio: "ignore" });
-      return true;
-    } catch {
-      return false;
-    }
+    return isExecutableOnPath(tool);
   }
 
   async start(maxSeconds: number): Promise<void> {
@@ -50,8 +86,8 @@ export class AudioRecorder {
     this.outputPath = path.join(os.tmpdir(), file);
     this.stopReason = null;
 
-    const { cmd, args } = this.buildCommand(this.outputPath);
-    this.proc = spawn(cmd, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const { bin, args } = buildRecorderCommand(this.tool, this.sampleRate, this.outputPath);
+    this.proc = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
 
     let stderrTail = "";
     this.proc.stderr?.on("data", (chunk) => {
@@ -66,40 +102,6 @@ export class AudioRecorder {
       this.stopReason = "timeout";
       this.kill();
     }, maxSeconds * 1000);
-  }
-
-  private buildCommand(outPath: string): { cmd: string; args: string[] } {
-    const sr = String(this.sampleRate);
-    switch (this.tool) {
-      case "arecord":
-        return {
-          cmd: "arecord",
-          args: ["-q", "-f", "S16_LE", "-r", sr, "-c", "1", "-t", "wav", outPath],
-        };
-      case "sox":
-        return {
-          cmd: "sox",
-          args: ["-q", "-d", "-r", sr, "-c", "1", "-b", "16", outPath],
-        };
-      case "ffmpeg":
-        return {
-          cmd: "ffmpeg",
-          args: [
-            "-loglevel",
-            "error",
-            "-f",
-            "alsa",
-            "-i",
-            "default",
-            "-ar",
-            sr,
-            "-ac",
-            "1",
-            "-y",
-            outPath,
-          ],
-        };
-    }
   }
 
   async stop(): Promise<{ path: string; reason: "user" | "timeout" }> {

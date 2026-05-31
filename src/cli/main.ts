@@ -208,9 +208,12 @@ async function pingUi(url: string): Promise<boolean> {
     // unresponsive
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 800);
-    const r = await fetch(`${url}/api/config`, { signal: ctrl.signal });
+    // Tokenless health probe — confirms it's our server, not just any process.
+    const r = await fetch(`${url}/api/health`, { signal: ctrl.signal });
     clearTimeout(t);
-    return r.ok;
+    if (!r.ok) return false;
+    const body = (await r.json().catch(() => ({}))) as { name?: string };
+    return body.name === "voice-coder";
   } catch {
     return false;
   }

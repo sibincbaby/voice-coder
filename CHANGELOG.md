@@ -10,13 +10,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Engineering foundation: ESLint (type-aware) + Prettier, stricter `tsconfig`,
   `.editorconfig`, `.nvmrc`, GitHub Actions CI, and a Vitest test suite covering the
-  pure logic (WAV silence detection, config/profile/history stores, key masking).
+  pure logic (WAV silence detection, config/profile/history stores, key masking,
+  PATH lookup, recorder command builder, server auth).
 - `CONTRIBUTING.md` and this changelog.
+
+### Security
+
+- The dashboard HTTP server now requires a per-session CSRF token (embedded in the
+  served HTML, sent as `X-VC-Token`) on all `/api` routes, plus a localhost `Host`
+  allowlist to block DNS-rebinding. Previously any website the user visited could
+  drive the local API (start recordings, rewrite the system instruction). A tokenless
+  `/api/health` probe remains for server discovery.
 
 ### Changed
 
-- Extracted pure WAV-level/silence detection into `src/cli/audio.ts` and API-key
-  masking into `src/cli/secret.ts` for testability and reuse.
+- Extracted pure logic into testable modules: WAV-level/silence (`audio.ts`), API-key
+  masking (`secret.ts`), PATH lookup (`which.ts`), and server auth (`auth.ts`).
+- De-duplicated the recorder command builder (was copied in `recorder.ts` and
+  `session.ts`) into a single `buildRecorderCommand`.
+- Replaced `execSync(\`command -v …\`)` tool detection with a shell-free PATH lookup.
 
 ## [0.1.0] - 2026-05
 
