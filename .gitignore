@@ -4,3 +4,7 @@ out/
 .vscode-test/
 .DS_Store
 .claude/
+
+# Python
+__pycache__/
+*.pyc
