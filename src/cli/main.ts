@@ -126,9 +126,10 @@ async function cmdUi(rest: string[]): Promise<number> {
   const port = portArg ? parseInt(portArg, 10) : 7777;
   const url = `http://127.0.0.1:${port}`;
 
+  let triggerShutdown: () => void = () => process.exit(0);
   let handle;
   try {
-    handle = await startServer({ port });
+    handle = await startServer({ port, onShutdown: () => triggerShutdown() });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
       // Server is already running on that port — assume it's us, just open
@@ -156,10 +157,16 @@ async function cmdUi(rest: string[]): Promise<number> {
   }
 
   return new Promise<number>((resolve) => {
+    let closing = false;
     const shutdown = () => {
+      if (closing) return;
+      closing = true;
       console.log("\nShutting down…");
+      notify("Voice Coder", "Server stopped.", "low");
       handle.close().finally(() => resolve(0));
     };
+    // Lets the /api/shutdown route end the process the same way Ctrl+C does
+    triggerShutdown = shutdown;
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   });

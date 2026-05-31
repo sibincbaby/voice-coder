@@ -22,12 +22,12 @@ export interface ServerHandle {
   close: () => Promise<void>;
 }
 
-export function startServer(opts: { host?: string; port?: number } = {}): Promise<ServerHandle> {
+export function startServer(opts: { host?: string; port?: number; onShutdown?: () => void } = {}): Promise<ServerHandle> {
   const host = opts.host ?? "127.0.0.1";
   const port = opts.port ?? 7777;
 
   const server = http.createServer((req, res) => {
-    handle(req, res).catch((err) => {
+    handle(req, res, opts.onShutdown).catch((err) => {
       console.error("[voice-coder ui] handler error:", err);
       sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
     });
@@ -49,7 +49,7 @@ export function startServer(opts: { host?: string; port?: number } = {}): Promis
 
 // ---------- routes ----------
 
-async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function handle(req: http.IncomingMessage, res: http.ServerResponse, onShutdown?: () => void): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const { pathname } = url;
   const method = req.method ?? "GET";
@@ -172,6 +172,17 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (pathname === "/api/record/cancel" && method === "POST") {
     const cancelled = cancelRecording();
     return sendJson(res, 200, { cancelled });
+  }
+
+  // ----- shutdown -----
+  if (pathname === "/api/shutdown" && method === "POST") {
+    if (isRecording()) {
+      return sendJson(res, 409, { error: "A recording is in progress. Stop or cancel it first." });
+    }
+    sendJson(res, 200, { ok: true });
+    // Let the response flush before tearing the server down.
+    if (onShutdown) setTimeout(onShutdown, 150);
+    return;
   }
 
   // ----- history -----

@@ -98,6 +98,13 @@ const PAGE = `<!doctype html>
     display: flex; align-items: center; gap: var(--s-2); color: var(--text-dim);
   }
   .sidebar .foot .swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .sidebar .foot .stop-server {
+    margin-top: var(--s-2); width: 100%; justify-content: flex-start;
+    font-size: 12px; color: var(--text-mute); padding: 7px 10px;
+  }
+  .sidebar .foot .stop-server:hover {
+    color: var(--bad); background: rgba(255,122,144,0.08);
+  }
 
   /* --- main content ----------------------------------------------------- */
   main { padding: var(--s-6) var(--s-7); max-width: 1080px; width: 100%; }
@@ -399,6 +406,7 @@ const PAGE = `<!doctype html>
         <span id="foot-active-name">—</span>
       </div>
       <div id="foot-paste">paste: detecting…</div>
+      <button class="btn ghost stop-server" id="stop-server" title="Stop the Voice Coder server">⏻ Stop server</button>
     </div>
   </aside>
 
@@ -1164,6 +1172,24 @@ const PAGE = `<!doctype html>
     } else if (e.key === "d" || e.key === "D") {
       if (selectedId) deleteProfile(selectedId);
       e.preventDefault();
+    }
+  });
+
+  // ---------- stop server ----------
+  $("#stop-server").addEventListener("click", async () => {
+    if (!confirm("Stop the Voice Coder server?\\n\\nThe dashboard will close and your global record shortcut will keep working (it launches its own process). Re-open this dashboard any time from your app launcher.")) return;
+    try {
+      await api("POST", "/api/shutdown");
+      // Server is going down; show a friendly end-state and try to close the window.
+      document.body.innerHTML =
+        '<div style="display:grid;place-items:center;height:100vh;color:#9aa1b1;' +
+        'font:15px system-ui;text-align:center;background:#0a0c11">' +
+        '<div><div style="font-size:32px;margin-bottom:12px">⏻</div>' +
+        'Voice Coder server stopped.<br><span style="color:#6c7385;font-size:13px">' +
+        'You can close this window. Re-open from your app launcher.</span></div></div>';
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);
+    } catch (err) {
+      toast(err.message, "bad");
     }
   });
 
