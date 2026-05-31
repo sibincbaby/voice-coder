@@ -124,13 +124,28 @@ async function cmdUi(rest: string[]): Promise<number> {
   const noOpen = rest.includes("--no-open");
   const appMode = rest.includes("--app");
   const port = portArg ? parseInt(portArg, 10) : 7777;
+  const url = `http://127.0.0.1:${port}`;
 
-  const handle = await startServer({ port }).catch((err) => {
+  let handle;
+  try {
+    handle = await startServer({ port });
+  } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
-      throw new Error(`Port ${port} is already in use. Try: voice-coder ui --port 7778`);
+      // Server is already running on that port — assume it's us, just open
+      // the window. This is the case when the user re-clicks the .desktop
+      // launcher while the previous server is still alive in the background.
+      if (await pingUi(url)) {
+        console.log(`Voice Coder UI is already running at ${url}`);
+        if (!noOpen) {
+          if (appMode) openInAppMode(url);
+          else         openBrowser(url);
+        }
+        return 0;
+      }
+      throw new Error(`Port ${port} is in use by a non-Voice-Coder process. Try: voice-coder ui --port 7778`);
     }
     throw err;
-  });
+  }
 
   console.log(`Voice Coder UI running at ${handle.url}`);
   console.log(`Press Ctrl+C to stop.`);
@@ -148,6 +163,20 @@ async function cmdUi(rest: string[]): Promise<number> {
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   });
+}
+
+async function pingUi(url: string): Promise<boolean> {
+  try {
+    // Use a brief AbortController in case the port is held by something
+    // unresponsive
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 800);
+    const r = await fetch(`${url}/api/config`, { signal: ctrl.signal });
+    clearTimeout(t);
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
 function parseArg(rest: string[], name: string): string | null {
