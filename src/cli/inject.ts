@@ -38,10 +38,23 @@ export function writeClipboard(text: string): void {
     tool === "xclip" ? { bin: "xclip", args: ["-selection", "clipboard"] } :
     tool === "xsel"  ? { bin: "xsel",  args: ["--clipboard", "--input"] } :
                        { bin: "wl-copy", args: [] };
-  const r = spawnSync(cmd.bin, cmd.args, { input: text, encoding: "utf8" });
-  if (r.status !== 0) {
-    throw new Error(`${cmd.bin} exited with status ${r.status}: ${r.stderr}`);
+
+  // CRITICAL: do NOT use spawnSync here. xclip/xsel/wl-copy must keep a
+  // process ALIVE to own the X11/Wayland selection — they don't exit after
+  // reading stdin. spawnSync would block forever waiting for that exit,
+  // freezing the whole flow (the transcript reaches the clipboard but the
+  // caller never returns, so the state machine stays stuck on "transcribing").
+  //
+  // Instead spawn detached, hand it the text on stdin, and let it live on in
+  // the background owning the selection. We don't wait for exit.
+  const child = spawn(cmd.bin, cmd.args, { stdio: ["pipe", "ignore", "ignore"], detached: true });
+  child.on("error", (err) => console.error(`[voice-coder] ${cmd.bin} failed:`, err));
+  try {
+    child.stdin?.end(text);
+  } catch (err) {
+    console.error(`[voice-coder] failed writing to ${cmd.bin}:`, err);
   }
+  child.unref();
 }
 
 export function readClipboard(): string {
