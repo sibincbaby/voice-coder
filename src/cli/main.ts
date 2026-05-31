@@ -12,6 +12,7 @@ import {
 import {
   isRecording, startRecording, stopAndTranscribe, cancelRecording, getStatus,
 } from "./session";
+import { isTrayRunning, STATE_FILE, TRAY_PIDFILE } from "./uistate";
 
 // ---------- main ----------
 
@@ -29,6 +30,7 @@ async function main(argv: string[]): Promise<number> {
       case "config": return cmdConfig();
       case "ui":
       case "dashboard": return await cmdUi(rest);
+      case "tray": return cmdTray(rest);
       case "help":
       case "-h":
       case "--help": return cmdHelp();
@@ -192,6 +194,63 @@ function parseArg(rest: string[], name: string): string | null {
   return rest[idx + 1];
 }
 
+function cmdTray(rest: string[]): number {
+  if (rest.includes("--install-autostart")) return installTrayAutostart();
+
+  if (isTrayRunning()) {
+    console.log("Tray indicator already running.");
+    return 0;
+  }
+  // tray.py lives in scripts/ next to the repo's out/cli.js. __dirname at
+  // runtime is the out/ dir, so the script is ../scripts/tray.py.
+  const trayScript = path.join(__dirname, "..", "scripts", "tray.py");
+  if (!fs.existsSync(trayScript)) {
+    console.error(`Tray script not found at ${trayScript}`);
+    return 1;
+  }
+  // Use the SYSTEM python (it has the gi / XApp bindings); a pyenv/conda
+  // python on PATH usually doesn't.
+  const py = fs.existsSync("/usr/bin/python3") ? "/usr/bin/python3" : "python3";
+  const foreground = rest.includes("--foreground") || rest.includes("-f");
+
+  // Pass the EXACT state/pid paths Node uses, so Node and Python can't disagree
+  // about the temp dir (TMPDIR quirks, sandboxes, etc.).
+  const env = { ...process.env, VC_STATE_FILE: STATE_FILE, VC_TRAY_PIDFILE: TRAY_PIDFILE };
+
+  if (foreground) {
+    const r = spawnSync(py, [trayScript], { stdio: "inherit", env });
+    return r.status ?? 0;
+  }
+  const child = spawn(py, [trayScript], { stdio: "ignore", detached: true, env });
+  child.unref();
+  console.log("Voice Coder tray indicator started.");
+  return 0;
+}
+
+function installTrayAutostart(): number {
+  const wrapper = path.join(os.homedir(), ".local", "bin", "voice-coder");
+  const exec = fs.existsSync(wrapper) ? wrapper : "voice-coder";
+  const dir = path.join(os.homedir(), ".config", "autostart");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "voice-coder-tray.desktop");
+  const contents = [
+    "[Desktop Entry]",
+    "Type=Application",
+    "Name=Voice Coder Tray",
+    "Comment=Voice Coder status indicator",
+    `Exec=${exec} tray`,
+    "Icon=audio-input-microphone",
+    "Terminal=false",
+    "X-GNOME-Autostart-enabled=true",
+    "Categories=Utility;",
+    "",
+  ].join("\n");
+  fs.writeFileSync(file, contents);
+  console.log(`✓ Autostart installed: ${file}`);
+  console.log("  The tray indicator will start automatically on next login.");
+  return 0;
+}
+
 function openBrowser(url: string): void {
   spawn("xdg-open", [url], { stdio: "ignore", detached: true }).unref();
 }
@@ -240,6 +299,8 @@ Commands:
   clear-key           Delete the stored API key
   config              Print effective config and config file paths
   ui [--port N]       Open the web dashboard (default http://localhost:7777)
+  tray                Start the panel status indicator (replaces popups)
+  tray --install-autostart   Start the tray automatically on login
   help                This text
 
 Typical setup:
@@ -266,6 +327,9 @@ const URGENCY_TO_INT: Record<string, number> = { low: 0, normal: 1, critical: 2 
 function notify(title: string, body: string, urgency: "low" | "normal" | "critical" = "normal"): void {
   const cfg = safeLoadConfigForNotify();
   if (cfg && !cfg.notify) return;
+  // If the tray indicator is running, it IS the status display — skip the
+  // popup so the user isn't double-notified. Errors still pop (urgency=critical).
+  if (urgency !== "critical" && isTrayRunning()) return;
 
   // Each new state ("Recording…" → "Transcribing…" → "✓ done") should
   // REPLACE the previous notification, not stack a new one in the tray.

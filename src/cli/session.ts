@@ -20,6 +20,7 @@ import { getActive as getActiveProfile, listProfiles } from "./profiles";
 import type { Profile } from "./profiles";
 import { writeClipboard, firePaste } from "./inject";
 import { appendHistory, log } from "./store";
+import { writeUiState } from "./uistate";
 
 export const LOCKFILE = path.join(os.tmpdir(), `voice-coder-${process.env.USER ?? "user"}.lock`);
 
@@ -81,6 +82,7 @@ export function startRecording(): LockState & { profileId: string; profileName: 
   // mid-recording the transcription uses the same one that started it.
   const state: LockState = { pid: proc.pid, wavPath, startedAt: Date.now(), tool, profileId: profile.id };
   fs.writeFileSync(LOCKFILE, JSON.stringify(state));
+  writeUiState("recording");
   log("info", `Started recording (profile=${profile.name}, pid=${proc.pid}, tool=${tool}, wav=${wavPath})`);
   scheduleWatchdog(proc.pid, profile.maxRecordingSeconds);
   return { ...state, profileId: profile.id, profileName: profile.name };
@@ -113,9 +115,11 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   try { process.kill(state.pid, "SIGINT"); } catch { /* already gone */ }
   await waitForExit(state.pid, 3000);
   fs.rmSync(LOCKFILE, { force: true });
+  writeUiState("transcribing");
 
   if (!fs.existsSync(state.wavPath) || fs.statSync(state.wavPath).size < 1024) {
     AudioRecorder.cleanup(state.wavPath);
+    writeUiState("idle", { error: "no audio" });
     throw new Error("Recording produced no audio (check your default mic).");
   }
 
@@ -142,6 +146,7 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
       profileId: profile.id,
       profileName: profile.name,
     });
+    writeUiState("idle", { error: msg });
     throw err;
   } finally {
     AudioRecorder.cleanup(state.wavPath);
@@ -166,6 +171,7 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
     pasteResult = firePaste() ? "fired" : "unavailable";
   }
 
+  writeUiState("idle", { text });
   return { text, durationMs, audioBytes, paste: pasteResult };
 }
 
@@ -179,6 +185,7 @@ export function cancelRecording(): boolean {
   const state = readLock();
   if (!state) return false;
   cleanupAfterStop(state.pid, state.wavPath, true);
+  writeUiState("idle");
   log("info", `Recording cancelled`);
   return true;
 }
