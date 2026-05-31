@@ -1,0 +1,13 @@
+# Normalize line endings to LF across platforms.
+* text=auto eol=lf
+
+# Binary / generated assets — never normalized or diffed as text.
+*.png binary
+*.jpg binary
+*.gif binary
+*.vsix binary
+*.wav binary
+
+# Keep shell/python scripts LF even on Windows checkouts.
+*.sh text eol=lf
+*.py text eol=lf

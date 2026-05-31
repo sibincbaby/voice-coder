@@ -1,5 +1,8 @@
 # Voice Coder
 
+[![CI](https://github.com/sibincbaby/voice-coder/actions/workflows/ci.yml/badge.svg)](https://github.com/sibincbaby/voice-coder/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 **Type by speaking.** Records your voice, sends it to Google's Gemini for transcription, and pastes the result into whatever input has focus. Comes in two flavors that share the same engine:
 
 - **VS Code extension** — focused on Copilot Chat, the Claude Code terminal, the editor, anywhere inside VS Code.

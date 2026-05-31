@@ -1,0 +1,46 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `voice-coder ...`
+        2. ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - CLI (voice-coder)
+        - Web dashboard (voice-coder ui)
+        - Tray indicator
+        - VS Code extension
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS / desktop environment, Node version, and the relevant tool versions.
+      placeholder: "Linux Mint 21 (Cinnamon/X11), Node 22, arecord + xclip + xdotool"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from `~/.config/voice-coder/voice-coder.log` (redact secrets).
+      render: shell

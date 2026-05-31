@@ -14,8 +14,21 @@
   },
   "homepage": "https://github.com/sibincbaby/voice-coder#readme",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.85.0",
+    "node": ">=20"
   },
+  "os": [
+    "linux"
+  ],
+  "files": [
+    "out/",
+    "scripts/",
+    "media/",
+    "glossaries/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "categories": [
     "Other"
   ],
@@ -127,7 +140,8 @@
     "test:coverage": "vitest run --coverage",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run type-check && pnpm run test && pnpm run compile",
     "package": "pnpm run compile:extension && vsce package --no-dependencies",
-    "install:cli": "pnpm run compile:cli && bash scripts/install-cli.sh"
+    "install:cli": "pnpm run compile:cli && bash scripts/install-cli.sh",
+    "prepublishOnly": "pnpm run compile"
   },
   "dependencies": {
     "@google/genai": "^1.0.0"

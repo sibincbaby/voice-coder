@@ -13,6 +13,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pure logic (WAV silence detection, config/profile/history stores, key masking,
   PATH lookup, recorder command builder, server auth).
 - `CONTRIBUTING.md` and this changelog.
+- Repo hygiene: `SECURITY.md`, issue/PR templates, Dependabot, `.gitattributes`,
+  a tagged-release workflow that publishes the `.vsix` + CLI tarball, a CI badge,
+  and `engines.node` / `files` / `os` fields in `package.json`.
 
 ### Security
 
