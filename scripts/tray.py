@@ -177,18 +177,18 @@ def pick_icon(state):
 # ----------------------------------------------------------------------------
 
 _apply = None
-_last = None
 loop = None
 
 
 def poll():
-    global _last
+    # Re-apply the icon on EVERY tick, not just on state change. XApp's
+    # StatusIcon asynchronously "refreshes" its dbus presence shortly after
+    # startup and can drop an icon that was set once during init; re-asserting
+    # it a few times a second keeps it reliably visible. set_icon_name with an
+    # unchanged value is a cheap no-op visually, so there's no flicker.
     state, text = read_state()
-    key = (state, text if state == "idle" else "")
-    if key != _last:
-        _last = key
-        if _apply:
-            _apply(state, text)
+    if _apply:
+        _apply(state, text)
     return True  # keep polling
 
 
