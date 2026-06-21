@@ -57,16 +57,16 @@
     "prepublishOnly": "pnpm run ci"
   },
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
-    "@google/genai": "^1.0.0",
-    "@types/node": "^20.0.0",
-    "@vitest/coverage-v8": "^2.1.0",
-    "esbuild": "^0.24.0",
-    "eslint": "^9.0.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.0",
-    "typescript": "^5.5.0",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^2.1.0"
+    "@eslint/js": "^10.0.1",
+    "@google/genai": "^2.9.0",
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^4.1.9"
   }
 }
