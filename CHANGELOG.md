@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06
+
+### Changed
+
+- **Removed the VS Code extension.** Voice Coder is now a focused, standalone
+  Linux CLI. The extension's microphone capture, paste injection, and Gemini
+  client all lived in the CLI already; the extension was a thin wrapper that
+  added install friction and a second code path to maintain.
+- Flattened `src/cli/*` up into `src/` now that the CLI is the only product.
+- Split the dashboard out of a single 1200-line HTML-in-a-string module into
+  `src/ui/` (`index.html`, `style.css`, and a real type-checked `app.ts` that
+  is bundled separately to `out/dashboard.js`).
+- Dashboard colors are validated against a hex allowlist before being written
+  into inline `style` attributes (defense in depth against a hand-edited
+  `profiles.json`).
+- Publishable to npm (`npm install -g voice-coder`); the release workflow now
+  ships a CLI tarball and publishes to npm instead of packaging a `.vsix`.
+
+### Added
+
+- `/style.css` and `/app.js` dashboard asset routes (token-exempt, secret-free).
+
 ## [Unreleased]
 
 ### Added
@@ -46,4 +68,3 @@ Initial working version (CLI + VS Code extension).
 - Panel tray status indicator (XApp/AppIndicator) replacing popup notifications.
 - Multi-profile system with per-profile model and system instruction.
 - Silence guard to avoid hallucinated transcripts on empty audio.
-- Linways ExamController domain glossary profile.

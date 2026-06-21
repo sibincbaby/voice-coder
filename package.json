@@ -1,10 +1,9 @@
 {
   "name": "voice-coder",
-  "displayName": "Voice Coder",
-  "description": "Voice typing for VS Code powered by Gemini. Speak Malayalam (or any language), get clean English text injected into the focused input — editor, Copilot Chat, Claude Code terminal, anywhere.",
-  "version": "0.1.0",
-  "publisher": "sibin",
+  "version": "0.2.0",
+  "description": "System-wide voice typing for Linux, powered by Gemini. Speak any language, get clean English text pasted into whatever input has focus — terminal, browser, editor, anywhere.",
   "license": "MIT",
+  "author": "Sibin C Baby",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sibincbaby/voice-coder.git"
@@ -14,7 +13,6 @@
   },
   "homepage": "https://github.com/sibincbaby/voice-coder#readme",
   "engines": {
-    "vscode": "^1.85.0",
     "node": ">=20"
   },
   "os": [
@@ -22,114 +20,30 @@
   ],
   "files": [
     "out/",
-    "scripts/",
-    "media/",
-    "glossaries/",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
-  "categories": [
-    "Other"
+    "scripts/tray.py",
+    "scripts/install-desktop.sh"
   ],
   "keywords": [
     "voice",
     "dictation",
     "speech-to-text",
+    "voice-typing",
     "gemini",
-    "malayalam",
     "transcription",
-    "copilot"
+    "translation",
+    "accessibility",
+    "linux",
+    "x11",
+    "wayland",
+    "cli"
   ],
-  "main": "./out/extension.js",
   "bin": {
     "voice-coder": "./out/cli.js"
   },
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "contributes": {
-    "commands": [
-      {
-        "command": "voiceCoder.toggleRecording",
-        "title": "Voice Coder: Toggle Recording"
-      },
-      {
-        "command": "voiceCoder.cancelRecording",
-        "title": "Voice Coder: Cancel Recording / Transcription"
-      },
-      {
-        "command": "voiceCoder.setApiKey",
-        "title": "Voice Coder: Set Gemini API Key"
-      },
-      {
-        "command": "voiceCoder.clearApiKey",
-        "title": "Voice Coder: Clear Gemini API Key"
-      },
-      {
-        "command": "voiceCoder.openSettings",
-        "title": "Voice Coder: Open Settings"
-      }
-    ],
-    "keybindings": [],
-    "configuration": {
-      "title": "Voice Coder",
-      "properties": {
-        "voiceCoder.model": {
-          "type": "string",
-          "default": "gemini-3.1-flash-lite",
-          "description": "Gemini model used for transcription. Examples: gemini-3.1-flash-lite, gemini-3-flash, gemini-2.5-flash. Lite is fastest and cheapest."
-        },
-        "voiceCoder.systemInstruction": {
-          "type": "string",
-          "editPresentation": "multilineText",
-          "default": "You are a speech-to-English translator for a developer. The user speaks Malayalam, often mixed with English technical/code terms.\n\nABSOLUTE OUTPUT RULES (these override any other interpretation of the audio):\n1. ALWAYS output in ENGLISH. NEVER output Malayalam script (no അആഇ...). If the user spoke Malayalam, TRANSLATE it to English.\n2. Preserve English words, identifiers, file paths, and code/technical terms verbatim (e.g., 'useState', 'package.json', 'localhost').\n3. Drop filler and stutters; do not paraphrase or invent detail.\n4. Render dictated punctuation as real symbols: 'open paren' -> (, 'arrow function' -> () =>, 'new line' -> an actual newline, 'comma' -> ,, 'period' -> ., 'question mark' -> ?.\n5. Output ONLY the final text. No preamble, no quotes, no explanation, no language tags, no markdown fences.\n\nThis is a translation task, not a transcription task. Even if the audio is 100% Malayalam, the output must be 100% English.",
-          "description": "System instruction sent to Gemini. Customize this to control output language, style, code conventions, etc."
-        },
-        "voiceCoder.audioTool": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "arecord",
-            "sox",
-            "ffmpeg"
-          ],
-          "default": "auto",
-          "description": "Audio recorder backend. 'auto' picks the first available of arecord, sox, ffmpeg."
-        },
-        "voiceCoder.sampleRate": {
-          "type": "number",
-          "default": 16000,
-          "description": "Recording sample rate in Hz. 16000 is recommended for speech."
-        },
-        "voiceCoder.injectionMethod": {
-          "type": "string",
-          "enum": [
-            "clipboard-paste",
-            "type-command"
-          ],
-          "default": "clipboard-paste",
-          "description": "How transcribed text is inserted. 'clipboard-paste' works in webviews (Copilot Chat) and terminals; 'type-command' only works in the editor."
-        },
-        "voiceCoder.maxRecordingSeconds": {
-          "type": "number",
-          "default": 120,
-          "description": "Auto-stop recording after this many seconds."
-        },
-        "voiceCoder.restoreClipboard": {
-          "type": "boolean",
-          "default": false,
-          "description": "If true, restore your previous clipboard contents after pasting the transcript. Default is false so the transcript stays in your clipboard — handy when the auto-paste misses (e.g. no input was focused) and you want to paste it manually with Ctrl+V."
-        }
-      }
-    }
-  },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile:extension",
-    "compile": "pnpm run compile:extension && pnpm run compile:cli",
-    "compile:extension": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --minify",
-    "compile:cli": "esbuild src/cli/main.ts --bundle --outfile=out/cli.js --platform=node --format=cjs --target=node20 --minify --banner:js='#!/usr/bin/env node' && chmod +x out/cli.js",
-    "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --platform=node --format=cjs --external:vscode --target=node20 --sourcemap --watch",
+    "compile": "pnpm run compile:cli && pnpm run compile:ui",
+    "compile:cli": "esbuild src/main.ts --bundle --outfile=out/cli.js --platform=node --format=cjs --target=node20 --minify --banner:js='#!/usr/bin/env node' --loader:.html=text --loader:.css=text && chmod +x out/cli.js",
+    "compile:ui": "esbuild src/ui/app.ts --bundle --outfile=out/dashboard.js --platform=browser --format=iife --target=es2020 --minify",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -139,18 +53,13 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run type-check && pnpm run test && pnpm run compile",
-    "package": "pnpm run compile:extension && vsce package --no-dependencies",
-    "install:cli": "pnpm run compile:cli && bash scripts/install-cli.sh",
-    "prepublishOnly": "pnpm run compile"
-  },
-  "dependencies": {
-    "@google/genai": "^1.0.0"
+    "install:cli": "pnpm run compile && bash scripts/install-cli.sh",
+    "prepublishOnly": "pnpm run ci"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@google/genai": "^1.0.0",
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.0.0",
     "@vitest/coverage-v8": "^2.1.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.0.0",

@@ -22,7 +22,7 @@ import {
 import { readHistory, clearHistory, readLogLines, clearLogs } from "./store";
 import { pasteToolName } from "./inject";
 import { maskKey } from "./secret";
-import { renderUi } from "./ui";
+import { renderPage, styleSheet, clientScript } from "./ui/index";
 import { generateToken, authorize } from "./auth";
 import {
   isRecording,
@@ -100,7 +100,20 @@ async function handle(
   // Static page — inject the session token so the UI can authenticate its calls.
   if (pathname === "/" && method === "GET") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(renderUi(token));
+    res.end(renderPage(token));
+    return;
+  }
+  if (pathname === "/style.css" && method === "GET") {
+    res.writeHead(200, { "Content-Type": "text/css; charset=utf-8" });
+    res.end(styleSheet());
+    return;
+  }
+  if (pathname === "/app.js" && method === "GET") {
+    const js = clientScript();
+    if (js === null)
+      return sendJson(res, 500, { error: "dashboard bundle missing — run pnpm run compile" });
+    res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+    res.end(js);
     return;
   }
 

@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { configDir, ensureConfigDir, loadConfig } from "./config";
-import type { AudioToolPref } from "../recorder";
+import type { AudioToolPref } from "./recorder";
 
 export interface Profile {
   id: string;
@@ -104,12 +104,11 @@ export function getActive(): Profile {
 
 export function activate(id: string): Profile {
   const state = loadFile();
-  if (!state.profiles.some((p) => p.id === id)) {
-    throw new Error(`No profile with id '${id}'.`);
-  }
+  const profile = state.profiles.find((p) => p.id === id);
+  if (!profile) throw new Error(`No profile with id '${id}'.`);
   state.activeId = id;
   saveFile(state);
-  return state.profiles.find((p) => p.id === id) as Profile;
+  return profile;
 }
 
 export function create(seed: Partial<Profile> & { name: string }): Profile {

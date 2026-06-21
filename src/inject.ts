@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { isExecutableOnPath as which } from "../which";
+import { isExecutableOnPath as which } from "./which";
 
 type ClipboardTool = "xclip" | "xsel" | "wl-copy";
 type PasteTool = "xdotool" | "ydotool" | "wtype";

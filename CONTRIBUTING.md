@@ -26,7 +26,7 @@ pnpm install
 | `pnpm run test`          | Run the Vitest suite                                      |
 | `pnpm run test:watch`    | Tests in watch mode                                       |
 | `pnpm run test:coverage` | Tests with coverage report                                |
-| `pnpm run compile`       | Build both the CLI and the VS Code extension              |
+| `pnpm run compile`       | Build the CLI bundle + the dashboard bundle               |
 | `pnpm run ci`            | Everything CI runs, in order                              |
 | `pnpm run install:cli`   | Build + symlink the `voice-coder` CLI into `~/.local/bin` |
 
@@ -36,26 +36,23 @@ Run `pnpm run ci` before opening a PR — it mirrors the GitHub Actions pipeline
 
 ```
 src/
-├── extension.ts        VS Code extension entry
-├── recorder.ts         Shared: audio capture (arecord/sox/ffmpeg)
-├── transcriber.ts      Shared: Gemini client
-├── injector.ts         VS Code: clipboard + paste
-├── config.ts/status.ts VS Code: settings + status bar
-└── cli/                The standalone `voice-coder` CLI
-    ├── main.ts         Command dispatch + process lifecycle
-    ├── session.ts      record/stop/cancel state machine
-    ├── audio.ts        Pure WAV level / silence detection (unit-tested)
-    ├── config.ts       File-based config + API key
-    ├── profiles.ts     Multi-profile store
-    ├── store.ts        History + log files
-    ├── inject.ts       Clipboard + OS-level paste
-    ├── server.ts       Dashboard HTTP server
-    ├── ui.ts           Dashboard single-page app (HTML/CSS/JS string)
-    ├── uistate.ts      Shared state file for the tray
-    └── secret.ts       API-key masking
+├── main.ts         Command dispatch + process lifecycle
+├── session.ts      record/stop/cancel state machine
+├── recorder.ts     Audio capture (arecord/sox/ffmpeg)
+├── transcriber.ts  Gemini client
+├── inject.ts       Clipboard + OS-level paste
+├── audio.ts        Pure WAV level / silence detection (unit-tested)
+├── config.ts       File-based config + API key
+├── profiles.ts     Multi-profile store
+├── store.ts        History + log files
+├── server.ts       Dashboard HTTP server
+├── which.ts        Shell-free PATH lookup
+├── uistate.ts      Shared state file for the tray
+├── secret.ts       API-key masking
+└── ui/             Dashboard SPA: index.html, style.css, app.ts (typed, bundled separately)
 scripts/
-├── tray.py             Panel status indicator (XApp/AppIndicator)
-└── install-*.sh        Install helpers
+├── tray.py         Panel status indicator (XApp/AppIndicator)
+└── install-*.sh    Install helpers
 ```
 
 ## Testing philosophy

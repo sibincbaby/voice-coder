@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="vc-token" content="__VC_TOKEN__" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Coder</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <!-- ============ SIDEBAR ============ -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">V</div>
+          <div class="name">Voice Coder</div>
+          <div class="ver" id="brand-ver"></div>
+        </div>
+
+        <nav class="nav" id="nav">
+          <button data-tab="home" class="active">
+            <span class="icon">⌂</span><span>Home</span>
+          </button>
+          <button data-tab="config"><span class="icon">⚙</span><span>Profile config</span></button>
+          <button data-tab="apikey"><span class="icon">⌬</span><span>API Key</span></button>
+          <button data-tab="history"><span class="icon">↻</span><span>History</span></button>
+          <button data-tab="logs"><span class="icon">≡</span><span>Logs</span></button>
+        </nav>
+
+        <div class="foot">
+          <div class="active-profile">
+            <span class="swatch" id="foot-swatch"></span>
+            <span id="foot-active-name">—</span>
+          </div>
+          <div id="foot-paste">paste: detecting…</div>
+          <button
+            class="btn ghost stop-server"
+            id="stop-server"
+            title="Stop the Voice Coder server"
+          >
+            ⏻ Stop server
+          </button>
+        </div>
+      </aside>
+
+      <!-- ============ MAIN ============ -->
+      <main>
+        <!-- =========== HOME =========== -->
+        <section data-pane="home">
+          <div class="page-head">
+            <h1>Profiles</h1>
+            <div class="sub">Pick a profile · the next recording uses it</div>
+          </div>
+
+          <div class="tile-grid" id="tile-grid"></div>
+
+          <div class="kbd-hints">
+            <span><kbd>1</kbd>–<kbd>9</kbd> jump &amp; activate</span>
+            <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> select</span>
+            <span><kbd>Enter</kbd> activate</span>
+            <span><kbd>E</kbd> edit</span>
+            <span><kbd>N</kbd> new</span>
+            <span><kbd>D</kbd> delete</span>
+          </div>
+        </section>
+
+        <!-- =========== CONFIG =========== -->
+        <section data-pane="config" hidden>
+          <div class="page-head">
+            <h1>Profile config</h1>
+            <div class="sub" id="config-sub">Editing: <span id="config-target">—</span></div>
+          </div>
+
+          <!-- Record panel for testing -->
+          <div class="card">
+            <h2>Test recording</h2>
+            <div class="help">
+              Record from the browser to test changes. Auto-paste is off here. The transcript
+              appears below and is also copied to your clipboard.
+            </div>
+
+            <div class="record-row">
+              <button class="btn record" id="record-btn">
+                <span class="rec-dot"></span><span id="record-label">Record</span>
+              </button>
+              <div class="record-meta">
+                <span id="record-timer" class="mono">00:00</span>
+                <span id="record-status" class="badge" hidden></span>
+              </div>
+              <div class="spacer"></div>
+              <button class="btn secondary" id="record-cancel" hidden>Cancel</button>
+            </div>
+
+            <div id="record-result" style="margin-top: var(--s-4)" hidden>
+              <label>Last transcript</label>
+              <textarea id="record-text" readonly rows="4"></textarea>
+              <div class="toolbar" style="margin-top: var(--s-2)">
+                <span class="meta" id="record-result-meta"></span>
+                <div class="spacer"></div>
+                <button class="btn secondary" id="record-copy">Copy</button>
+                <button class="btn ghost" id="record-clear">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Profile identity -->
+          <div class="card">
+            <h2>Identity</h2>
+            <div class="row">
+              <div>
+                <label>Name</label>
+                <input id="f-name" type="text" />
+              </div>
+              <div>
+                <label>Color</label>
+                <div class="swatches" id="color-swatches"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model & behavior -->
+          <div class="card">
+            <h2>Model &amp; behavior</h2>
+            <div class="help">
+              Saved on click. The next recording with this profile picks them up — no restart
+              needed.
+            </div>
+
+            <div class="row">
+              <div>
+                <label>Gemini model</label>
+                <input id="f-model" type="text" placeholder="gemini-3.1-flash-lite" />
+              </div>
+              <div>
+                <label>Audio recorder</label>
+                <select id="f-audioTool">
+                  <option value="auto">auto</option>
+                  <option value="arecord">arecord</option>
+                  <option value="sox">sox</option>
+                  <option value="ffmpeg">ffmpeg</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row three" style="margin-top: var(--s-4)">
+              <div>
+                <label>Sample rate (Hz)</label>
+                <input id="f-sampleRate" type="number" min="8000" max="48000" step="1000" />
+              </div>
+              <div>
+                <label>Max recording (s)</label>
+                <input id="f-maxRecordingSeconds" type="number" min="5" max="3600" />
+              </div>
+              <div>
+                <label>Toggles</label>
+                <div style="display: flex; gap: var(--s-4); padding-top: 6px">
+                  <label class="check"><input id="f-autoPaste" type="checkbox" /> auto-paste</label>
+                  <label class="check"><input id="f-notify" type="checkbox" /> notify</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top: var(--s-4)">
+              <label>System instruction</label>
+              <textarea
+                id="f-systemInstruction"
+                rows="14"
+                placeholder="You are a transcription engine…"
+              ></textarea>
+            </div>
+
+            <div class="toolbar">
+              <button class="btn" id="save-config">Save changes</button>
+              <button class="btn ghost" id="reload-config">Discard</button>
+              <div class="spacer"></div>
+              <button class="btn danger" id="delete-profile">Delete profile</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========== API KEY =========== -->
+        <section data-pane="apikey" hidden>
+          <div class="page-head">
+            <h1>API key</h1>
+            <div class="sub">
+              Stored at <span class="mono" id="meta-key-path"></span>, chmod 600. Or set
+              <span class="mono">GEMINI_API_KEY</span>.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="field">
+              <label>Current key</label>
+              <div class="toolbar">
+                <input id="f-apikey-masked" type="text" readonly placeholder="(not set)" />
+                <button class="btn danger" id="clear-key">Clear</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Set a new key</label>
+              <input id="f-apikey" type="password" placeholder="AIza…" />
+            </div>
+            <div class="toolbar">
+              <button class="btn" id="save-key">Save</button>
+              <button class="btn secondary" id="test-key">Test connection</button>
+              <div class="spacer"></div>
+              <span id="test-result" class="badge" hidden></span>
+            </div>
+            <div class="help" style="margin-top: var(--s-4)">
+              Need a key? Get one free at
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener"
+                >aistudio.google.com/apikey</a
+              >.
+            </div>
+          </div>
+        </section>
+
+        <!-- =========== HISTORY =========== -->
+        <section data-pane="history" hidden>
+          <div class="page-head">
+            <h1>History</h1>
+            <div class="sub"><span id="history-count">0</span> transcriptions</div>
+            <div class="spacer"></div>
+            <button class="btn secondary" id="refresh-history">Refresh</button>
+            <button class="btn danger" id="clear-history">Clear</button>
+          </div>
+          <div class="card">
+            <div id="history-container"></div>
+          </div>
+        </section>
+
+        <!-- =========== LOGS =========== -->
+        <section data-pane="logs" hidden>
+          <div class="page-head">
+            <h1>Logs</h1>
+            <div class="sub">tail of voice-coder.log · auto-refreshes every 2s</div>
+            <div class="spacer"></div>
+            <label class="check"
+              ><input id="f-auto-refresh" type="checkbox" checked /> auto-refresh</label
+            >
+            <button class="btn secondary" id="refresh-logs">Refresh</button>
+            <button class="btn danger" id="clear-logs">Clear</button>
+          </div>
+          <div class="card">
+            <div class="logs" id="logs-container"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- =========== MODALS =========== -->
+    <div class="modal-backdrop" id="modal-new" hidden>
+      <div class="modal">
+        <h3>New profile</h3>
+        <div class="field">
+          <label>Name</label>
+          <input id="new-name" type="text" placeholder="e.g. Malayalam → English (technical)" />
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <div class="swatches" id="new-swatches"></div>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="new-create">Create</button>
+          <button class="btn ghost" id="new-cancel">Cancel</button>
+        </div>
+        <div class="help" style="margin-top: var(--s-3)">
+          Inherits model + system instruction from the currently active profile. You can edit them
+          after.
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -27,7 +27,6 @@ body:
         - CLI (voice-coder)
         - Web dashboard (voice-coder ui)
         - Tray indicator
-        - VS Code extension
     validations:
       required: true
   - type: input

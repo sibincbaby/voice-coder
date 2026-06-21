@@ -42,9 +42,18 @@ export interface AuthDecision {
   error?: string;
 }
 
-/** Routes that never require the token (bootstrap + liveness probe). */
+/**
+ * Routes that never require the token: the bootstrap page (which carries the
+ * token), its static assets (fetched via <link>/<script>, which can't send
+ * custom headers and contain no secrets), and the liveness probe.
+ */
 export function isExemptPath(pathname: string): boolean {
-  return pathname === "/" || pathname === "/api/health";
+  return (
+    pathname === "/" ||
+    pathname === "/style.css" ||
+    pathname === "/app.js" ||
+    pathname === "/api/health"
+  );
 }
 
 export function authorize(

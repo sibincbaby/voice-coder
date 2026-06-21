@@ -13,8 +13,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { randomUUID } from "node:crypto";
 
-import { AudioRecorder, buildRecorderCommand, type AudioTool } from "../recorder";
-import { transcribe } from "../transcriber";
+import { AudioRecorder, buildRecorderCommand, type AudioTool } from "./recorder";
+import { transcribe } from "./transcriber";
 import { loadApiKey } from "./config";
 import { getActive as getActiveProfile, listProfiles } from "./profiles";
 import type { Profile } from "./profiles";

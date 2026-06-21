@@ -18,8 +18,8 @@ Voice Coder runs locally and talks to two trust boundaries:
 
 - **The Gemini API** — your audio is sent to Google for transcription. Your API
   key is stored in `~/.config/voice-coder/api-key` with `0600` permissions (or
-  the `GEMINI_API_KEY` environment variable), and in VS Code's SecretStorage for
-  the extension. It is never written to `config.json` or logs.
+  read from the `GEMINI_API_KEY` environment variable). It is never written to
+  `config.json` or logs.
 - **The local dashboard server** (`voice-coder ui`) — binds to `127.0.0.1` only
   and protects all `/api` routes with a per-session CSRF token plus a localhost
   `Host` allowlist, so other local apps and websites you visit cannot drive it.
