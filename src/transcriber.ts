@@ -6,6 +6,7 @@ export interface TranscribeOptions {
   model: string;
   systemInstruction: string;
   wavPath: string;
+  mimeType?: string;
   signal?: AbortSignal;
 }
 
@@ -33,7 +34,7 @@ export async function transcribe(opts: TranscribeOptions): Promise<string> {
           {
             text: "Process the attached audio per the system instruction. Output only the resulting text, nothing else.",
           },
-          { inlineData: { mimeType: "audio/wav", data: audioBase64 } },
+          { inlineData: { mimeType: opts.mimeType ?? "audio/wav", data: audioBase64 } },
         ],
       },
     ],

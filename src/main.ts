@@ -15,6 +15,8 @@ import {
   configDir,
   type CliConfig,
 } from "./config";
+import { transcribe } from "./transcriber";
+import { listProfiles, getActive } from "./profiles";
 import {
   isRecording,
   startRecording,
@@ -51,6 +53,8 @@ async function main(argv: string[]): Promise<number> {
         return await cmdUi(rest);
       case "tray":
         return cmdTray(rest);
+      case "analyze":
+        return await cmdAnalyze(rest);
       case "help":
       case "-h":
       case "--help":
@@ -315,6 +319,67 @@ function openInAppMode(url: string): void {
   openBrowser(url);
 }
 
+const AUDIO_MIME: Record<string, string> = {
+  ".wav": "audio/wav",
+  ".mp3": "audio/mp3",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".webm": "audio/webm",
+};
+
+async function cmdAnalyze(rest: string[]): Promise<number> {
+  const filePath = rest.find((a) => !a.startsWith("-"));
+  if (!filePath) {
+    console.error("Usage: voice-coder analyze <path-to-audio> [--profile <id|name>]");
+    return 1;
+  }
+
+  const absPath = path.resolve(filePath);
+  if (!fs.existsSync(absPath)) {
+    console.error(`File not found: ${absPath}`);
+    return 1;
+  }
+
+  // Pick profile: --profile <id-or-name>, else active
+  const profileArg = parseArg(rest, "--profile");
+  let profile = getActive();
+  if (profileArg) {
+    const { profiles } = listProfiles();
+    const found =
+      profiles.find((p) => p.id === profileArg) ??
+      profiles.find((p) => p.name.toLowerCase() === profileArg.toLowerCase());
+    if (!found) {
+      console.error(`No profile matching '${profileArg}'. Run: voice-coder config`);
+      return 1;
+    }
+    profile = found;
+  }
+
+  const apiKey = loadApiKey();
+  if (!apiKey) {
+    console.error("No API key set. Run: voice-coder set-key");
+    return 1;
+  }
+
+  const ext = path.extname(absPath).toLowerCase();
+  const mimeType = AUDIO_MIME[ext] ?? "audio/wav";
+
+  const text = await transcribe({
+    apiKey,
+    model: profile.model,
+    systemInstruction: profile.systemInstruction,
+    wavPath: absPath,
+    mimeType,
+  });
+
+  process.stdout.write(
+    JSON.stringify({ file: absPath, profile: profile.name, text }, null, 2) + "\n",
+  );
+  return 0;
+}
+
 function cmdConfig(): number {
   const cfg = loadConfig();
   console.log(`config file: ${configFile()}`);
@@ -337,6 +402,8 @@ Commands:
   stop [--copy-only]  Stop recording and transcribe. --copy-only skips auto-paste
   cancel              Discard active recording
   status              Print idle / recording state
+  analyze <file>      Transcribe an audio file; outputs JSON. Supports wav/mp3/ogg/flac/m4a
+                      Options: --profile <id|name>  use a specific profile (default: active)
   set-key             Read a Gemini API key from stdin and store it (chmod 600)
   clear-key           Delete the stored API key
   config              Print effective config and config file paths
