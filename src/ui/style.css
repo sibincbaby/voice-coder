@@ -148,9 +148,15 @@ pre,
 }
 .nav button .icon {
   width: 16px;
+  height: 16px;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   opacity: 0.9;
+}
+.nav button .icon svg {
+  display: block;
 }
 .nav button .badge-active {
   margin-left: auto;

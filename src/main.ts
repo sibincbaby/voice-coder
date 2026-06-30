@@ -55,6 +55,11 @@ async function main(argv: string[]): Promise<number> {
         return cmdTray(rest);
       case "analyze":
         return await cmdAnalyze(rest);
+      case "version":
+      case "-v":
+      case "--version":
+        console.log(`voice-coder ${getVersion()}`);
+        return 0;
       case "help":
       case "-h":
       case "--help":
@@ -391,34 +396,36 @@ function cmdConfig(): number {
 }
 
 function cmdHelp(): number {
-  console.log(`voice-coder — Gemini-powered voice typing for Linux
+  console.log(`voice-coder ${getVersion()} — Gemini-powered voice typing for Linux
 
 Usage:
-  voice-coder <command>
+  voice-coder <command> [options]
 
 Commands:
-  toggle              Start recording, or stop and transcribe (default)
-  record              Start recording
-  stop [--copy-only]  Stop recording and transcribe. --copy-only skips auto-paste
-  cancel              Discard active recording
-  status              Print idle / recording state
-  analyze <file>      Transcribe an audio file; outputs JSON. Supports wav/mp3/ogg/flac/m4a
-                      Options: --profile <id|name>  use a specific profile (default: active)
-  set-key             Read a Gemini API key from stdin and store it (chmod 600)
-  clear-key           Delete the stored API key
-  config              Print effective config and config file paths
-  ui [--port N]       Open the web dashboard (default http://localhost:7777)
-  tray                Start the panel status indicator (replaces popups)
-  tray --install-autostart   Start the tray automatically on login
-  help                This text
+  toggle                   Start recording, or stop and transcribe (default)
+  record                   Start recording
+  stop [--copy-only]       Stop and transcribe. --copy-only skips auto-paste
+  cancel                   Discard active recording
+  status                   Print idle / recording state
+  analyze <file>           Transcribe an audio file → JSON output
+                           Formats: wav mp3 ogg flac m4a aac webm
+                           Options: --profile <id|name>
+  set-key                  Save a Gemini API key (read from stdin, chmod 600)
+  clear-key                Delete the stored API key
+  config                   Print effective config and file paths
+  ui [--port N]            Open the web dashboard (default: http://localhost:7777)
+  tray                     Start the panel status indicator
+  tray --install-autostart Auto-start tray on login
+  version, --version, -v   Print version
+  help, --help, -h         This text
 
-Typical setup:
-  1. voice-coder set-key                   # one-time, paste your key
-  2. Bind 'voice-coder toggle' to a global keyboard shortcut in your DE
-     (GNOME: Settings -> Keyboard -> Custom Shortcuts. Pick e.g. Ctrl+Alt+V)
-  3. Focus an input anywhere, press the shortcut, speak, press it again.
+Quick start:
+  1. voice-coder set-key       ← paste your Gemini API key (one-time)
+  2. Bind 'voice-coder toggle' to a global keyboard shortcut
+     (GNOME: Settings → Keyboard → Custom Shortcuts → +)
+  3. Focus any input, press the shortcut, speak, press again.
 
-Config:  ${configDir()}/config.json
+Config: ${configDir()}/config.json
 `);
   return 0;
 }
@@ -583,6 +590,19 @@ function readAllStdin(): Promise<string> {
     process.stdin.on("end", () => resolve(buf));
     process.stdin.on("error", reject);
   });
+}
+
+// ---------- helpers ----------
+
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+    ) as { version?: string };
+    return pkg.version ?? "0.x";
+  } catch {
+    return "0.x";
+  }
 }
 
 // ---------- entrypoint ----------

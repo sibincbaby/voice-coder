@@ -115,15 +115,18 @@ If auto-paste lands in the wrong place or another window stole focus, just `Ctrl
 ## CLI commands
 
 ```bash
-voice-coder toggle              # start, or stop and transcribe (the one to bind)
-voice-coder stop                # explicit stop
-voice-coder stop --copy-only    # stop, copy to clipboard, but don't auto-paste
-voice-coder cancel              # discard active recording without transcribing
-voice-coder status              # idle / recording with elapsed time
-voice-coder set-key             # save Gemini API key (stdin, chmod 600)
+voice-coder toggle                    # start, or stop and transcribe (the one to bind)
+voice-coder stop                      # explicit stop
+voice-coder stop --copy-only          # stop, copy to clipboard, but don't auto-paste
+voice-coder cancel                    # discard active recording without transcribing
+voice-coder status                    # idle / recording with elapsed time
+voice-coder analyze <file>            # transcribe a local audio file → JSON output
+voice-coder analyze <file> --profile  # use a specific profile by id or name
+voice-coder set-key                   # save Gemini API key (stdin, chmod 600)
 voice-coder clear-key
-voice-coder config              # print effective config + paths
-voice-coder ui [--port 7777]    # open the web dashboard (config, history, logs)
+voice-coder config                    # print effective config + paths
+voice-coder ui [--port 7777]          # open the web dashboard (config, history, logs)
+voice-coder --version                 # print version
 ```
 
 ---

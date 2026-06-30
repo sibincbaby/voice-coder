@@ -204,7 +204,7 @@ export async function stopAndTranscribe(opts: StopOptions = {}): Promise<Transcr
   if (paste && profile.autoPaste) {
     // Give the clipboard tool a beat to actually own the selection before we
     // fire Ctrl+V (writeClipboard returns immediately now, without waiting).
-    await sleep(80);
+    await new Promise((r) => setTimeout(r, 80));
     pasteResult = firePaste() ? "fired" : "unavailable";
   }
 
@@ -285,6 +285,3 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<void> {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}

@@ -133,26 +133,21 @@ const TERMINAL_WINDOW_CLASSES = [
 ];
 
 function isActiveWindowTerminal(): boolean {
-  // Only works under X11. We read the active window's WM_CLASS via xprop
-  // (xdotool doesn't expose window class directly). On Wayland this won't
-  // work — caller falls back to plain ctrl+v.
+  // Only works under X11. On Wayland this returns false and the caller falls
+  // back to plain ctrl+v.
   try {
-    const wid = spawnSync("xdotool", ["getactivewindow"], { encoding: "utf8", timeout: 200 });
-    if (wid.status !== 0) return false;
-    const winId = (wid.stdout || "").trim();
-    if (!winId) return false;
-
-    const xp = spawnSync("xprop", ["-id", winId, "WM_CLASS"], { encoding: "utf8", timeout: 200 });
-    if (xp.status !== 0) return false;
-    // Output looks like:  WM_CLASS(STRING) = "gnome-terminal-server", "Gnome-terminal"
-    const out = (xp.stdout || "").toLowerCase();
-    return TERMINAL_WINDOW_CLASSES.some((t) => out.includes(t));
+    const r = spawnSync("xdotool", ["getactivewindow", "getwindowclassname"], {
+      encoding: "utf8",
+      timeout: 300,
+    });
+    if (r.status !== 0) return false;
+    const cls = (r.stdout || "").trim().toLowerCase();
+    return TERMINAL_WINDOW_CLASSES.some((t) => cls.includes(t));
   } catch {
     return false;
   }
 }
 
 export function pasteToolName(): string {
-  const t = detectPaste();
-  return t === "none" ? "none" : t;
+  return detectPaste();
 }

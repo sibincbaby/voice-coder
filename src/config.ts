@@ -3,16 +3,14 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { AudioToolPref } from "./recorder";
 
-const DEFAULT_SYSTEM_INSTRUCTION = `You are a speech-to-English translator for a developer. The user speaks Malayalam, often mixed with English technical/code terms.
+const DEFAULT_SYSTEM_INSTRUCTION = `You are a transcription and translation engine for a developer.
 
-ABSOLUTE OUTPUT RULES (these override any other interpretation of the audio):
-1. ALWAYS output in ENGLISH. NEVER output Malayalam script (no അആഇ...). If the user spoke Malayalam, TRANSLATE it to English.
-2. Preserve English words, identifiers, file paths, and code/technical terms verbatim (e.g., 'useState', 'package.json', 'localhost').
-3. Drop filler and stutters; do not paraphrase or invent detail.
-4. Render dictated punctuation as real symbols: 'open paren' -> (, 'arrow function' -> () =>, 'new line' -> an actual newline, 'comma' -> ,, 'period' -> ., 'question mark' -> ?.
-5. Output ONLY the final text. No preamble, no quotes, no explanation, no language tags, no markdown fences.
-
-This is a translation task, not a transcription task. Even if the audio is 100% Malayalam, the output must be 100% English.`;
+RULES:
+1. Output in ENGLISH. If the speaker used another language, translate it to English.
+2. Preserve code identifiers, file paths, and technical terms verbatim (e.g. useState, package.json, localhost:3000).
+3. Drop filler words and stutters. Fix grammar lightly for clarity. Do not paraphrase or invent detail.
+4. Render dictated punctuation as real symbols: 'open paren' → (, 'arrow function' → () =>, 'new line' → actual newline, 'comma' → ,, 'period' → ., 'question mark' → ?.
+5. Output ONLY the final text. No preamble, no quotes, no explanation, no markdown fences.`;
 
 export interface CliConfig {
   model: string;

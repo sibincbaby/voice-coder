@@ -1,4 +1,6 @@
 import * as http from "node:http";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { GoogleGenAI } from "@google/genai";
 
 import {
@@ -94,7 +96,7 @@ async function handle(
 
   // Tokenless liveness probe (used by `voice-coder ui` to detect an existing server).
   if (pathname === "/api/health" && method === "GET") {
-    return sendJson(res, 200, { ok: true, name: "voice-coder" });
+    return sendJson(res, 200, { ok: true, name: "voice-coder", version: getVersion() });
   }
 
   // Static page — inject the session token so the UI can authenticate its calls.
@@ -120,6 +122,7 @@ async function handle(
   // ----- config -----
   if (pathname === "/api/config" && method === "GET") {
     return sendJson(res, 200, {
+      version: getVersion(),
       config: loadConfig(),
       paths: { configFile: configFile(), apiKeyFile: apiKeyFile(), configDir: configDir() },
       pasteTool: pasteToolName(),
@@ -261,6 +264,17 @@ async function handle(
 }
 
 // ---------- helpers ----------
+
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+    ) as { version?: string };
+    return pkg.version ?? "0.x";
+  } catch {
+    return "0.x";
+  }
+}
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });

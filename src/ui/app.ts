@@ -229,25 +229,27 @@ async function deleteProfile(id: string): Promise<void> {
   }
 }
 
-// ---- new-profile modal
-function renderNewSwatches(): void {
-  const used = new Set(profiles.map((p) => p.color));
-  const c = PALETTE.find((x) => !used.has(x)) || PALETTE[0];
-  $("#new-swatches").innerHTML = PALETTE.map(
+// ---- swatch picker (shared by new-profile modal + config form)
+function renderSwatches(containerId: string, selectedColor: string): void {
+  const el = $(`#${containerId}`);
+  const safe = safeColor(selectedColor); // validate before using in template
+  el.innerHTML = PALETTE.map(
     (color) =>
-      `<span class="swatch ${color === c ? "selected" : ""}"
+      `<span class="swatch ${color === safe ? "selected" : ""}"
            style="background: ${color}" data-color="${color}"></span>`,
   ).join("");
-  $("#new-swatches")
-    .querySelectorAll<HTMLElement>(".swatch")
-    .forEach((el) => {
-      el.addEventListener("click", () => {
-        $("#new-swatches")
-          .querySelectorAll(".swatch")
-          .forEach((s) => s.classList.remove("selected"));
-        el.classList.add("selected");
-      });
+  el.querySelectorAll<HTMLElement>(".swatch").forEach((s) => {
+    s.addEventListener("click", () => {
+      el.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
+      s.classList.add("selected");
     });
+  });
+}
+
+function renderNewSwatches(): void {
+  const used = new Set(profiles.map((p) => p.color));
+  const c = PALETTE.find((x) => !used.has(x)) ?? PALETTE[0];
+  renderSwatches("new-swatches", c);
 }
 function openNewModal(): void {
   $<HTMLInputElement>("#new-name").value = "";
@@ -301,31 +303,13 @@ $("#new-create").addEventListener("click", () => {
 });
 
 // ---------- config form (editing a profile) ----------
-function renderColorSwatches(currentColor: string): void {
-  $("#color-swatches").innerHTML = PALETTE.map(
-    (color) =>
-      `<span class="swatch ${color === currentColor ? "selected" : ""}"
-           style="background: ${color}" data-color="${color}"></span>`,
-  ).join("");
-  $("#color-swatches")
-    .querySelectorAll<HTMLElement>(".swatch")
-    .forEach((el) => {
-      el.addEventListener("click", () => {
-        $("#color-swatches")
-          .querySelectorAll(".swatch")
-          .forEach((s) => s.classList.remove("selected"));
-        el.classList.add("selected");
-      });
-    });
-}
-
 function renderConfigForm(): void {
   const p = profiles.find((x) => x.id === editingId);
   if (!p) return;
   $("#config-target").innerHTML =
     `<span class="pill profile-pill"><span class="dot" style="background: ${safeColor(p.color)}"></span>${esc(p.name)}</span>`;
   $<HTMLInputElement>("#f-name").value = p.name;
-  renderColorSwatches(p.color);
+  renderSwatches("color-swatches", p.color);
   $<HTMLInputElement>("#f-model").value = p.model;
   $<HTMLSelectElement>("#f-audioTool").value = p.audioTool;
   $<HTMLInputElement>("#f-sampleRate").value = String(p.sampleRate);
@@ -740,10 +724,11 @@ $("#stop-server").addEventListener("click", () => {
 // ---------- boot ----------
 async function boot(): Promise<void> {
   try {
-    const cfg = await api<{ paths: { apiKeyFile: string }; pasteTool: string }>(
+    const cfg = await api<{ version?: string; paths: { apiKeyFile: string }; pasteTool: string }>(
       "GET",
       "/api/config",
     );
+    if (cfg.version) $("#brand-ver").textContent = `v${cfg.version}`;
     $("#meta-key-path").textContent = cfg.paths.apiKeyFile;
     $("#foot-paste").textContent = "paste: " + cfg.pasteTool;
     await Promise.all([loadProfiles(), loadApiKey(), refreshRecordStatus()]);
